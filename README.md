@@ -69,6 +69,7 @@ especificaciones.csv      Especificaciones por producto y línea
 personal_linea.json       Dotación por modelo
 layouts.json              Links y metadatos de layouts
 tiempos_linea.json        Tiempos por puesto
+modelos.json              Catálogo maestro de identidad de producto
 ```
 
 Las rutas se resuelven respecto de `main.py`, no respecto del directorio desde el cual se inicia Uvicorn. Las escrituras JSON/CSV usan archivo temporal, `fsync`, reemplazo atómico y un único backup `.bak` para evitar acumulación ilimitada.
@@ -88,3 +89,32 @@ La interfaz conserva la clave únicamente en memoria hasta cerrar o recargar la 
 ## Datos industriales pendientes de validación
 
 Los tres registros inverter de 24K declaran 9 unidades por pallet y, simultáneamente, 2 capas por 4 cajas. La aplicación registra una advertencia y conserva los valores originales para revisión de Ingeniería/Logística.
+
+## Identidad de modelos
+
+`modelos.json` es la fuente maestra de identidad. Cada producto del catálogo principal tiene un `model_id` único y estable, por ejemplo `mdl_000002`. El identificador no codifica capacidad, proveedor, modelo comercial ni línea, por lo que esos nombres pueden evolucionar sin obligar a reutilizar o recalcular el ID.
+
+El catálogo conserva también `capacidad`, `proveedor` y `modelo` para resolver las relaciones actuales. Solo incorpora `sku_bgh` y `pnb` cuando existe una correspondencia directa en las fuentes actuales; los datos ambiguos permanecen como `null` y se informan en el reporte de integridad.
+
+### Compatibilidad de API
+
+Los endpoints existentes continúan aceptando la clave compuesta:
+
+```text
+capacidad + proveedor + modelo
+```
+
+Los endpoints orientados a identidad son:
+
+- `GET /modelos`: catálogo maestro;
+- `GET /modelos/{model_id}`: identidad de un modelo;
+- `GET /modelos/{model_id}/resumen`: palletización, specs por línea, dotación, layout, tiempos y estados de completitud;
+- `GET /modelos/integridad`: relaciones faltantes, huérfanas, ambiguas y advertencias conocidas.
+
+Una misma identidad puede tener especificaciones para varias líneas. La línea es una dimensión relacionada y no genera otro `model_id`.
+
+### Modelo activo en el frontend
+
+Al elegir capacidad, proveedor y modelo en cualquier módulo, la interfaz resuelve su `model_id`, lo presenta en la barra superior y sincroniza los selects de Palletización, Ficha, Personal, Especificaciones, Layouts y Tiempos. Solo el `model_id` se conserva en `sessionStorage`; la clave administrativa continúa exclusivamente en memoria.
+
+Al recargar la página, el frontend comprueba que el ID guardado siga presente en `/modelos`. Si existe, restaura el contexto; si ya no existe, elimina la selección guardada. La Ficha utiliza el resumen consolidado como dashboard mínimo sin reemplazar los demás módulos.

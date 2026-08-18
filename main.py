@@ -7,6 +7,7 @@ import os
 import shutil
 import tempfile
 import unicodedata
+from datetime import date
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -178,6 +179,34 @@ def load_json(path: Path, label: str) -> Dict[str, Any]:
     return data
 
 
+def load_models(path: Path) -> List[Dict[str, Any]]:
+    if not path.exists():
+        raise FileNotFoundError(f"No existe el catálogo maestro: {path}")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("El catálogo maestro contiene JSON inválido") from exc
+    except OSError as exc:
+        raise RuntimeError("No se pudo leer el catálogo maestro") from exc
+    if not isinstance(data, list):
+        raise RuntimeError("El catálogo maestro debe contener una lista JSON")
+    ids, keys = set(), set()
+    for index, item in enumerate(data, 1):
+        if not isinstance(item, dict):
+            raise RuntimeError(f"Modelo {index}: se esperaba un objeto")
+        model_id = item.get("model_id")
+        key = tuple(norm(item.get(field)) for field in ("capacidad", "proveedor", "modelo"))
+        if not isinstance(model_id, str) or not model_id.startswith("mdl_") or not all(key):
+            raise RuntimeError(f"Modelo {index}: identidad incompleta o model_id inválido")
+        if model_id in ids:
+            raise RuntimeError(f"model_id duplicado: {model_id}")
+        if key in keys:
+            raise RuntimeError(f"Clave de producto duplicada: {'/'.join(key)}")
+        ids.add(model_id)
+        keys.add(key)
+    return data
+
+
 def atomic_write_text(path: Path, text: str, validator) -> None:
     validator(text)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -233,6 +262,12 @@ SPECS = load_specs(ESPEC_PATH)
 PERSONAL = load_json(PERSONAL_PATH, "personal de línea")
 LAYOUTS = load_json(LAYOUTS_PATH, "layouts")
 TIEMPOS = load_json(TIEMPOS_PATH, "tiempos de línea")
+MODELOS = load_models(MODELOS_PATH)
+MODELS_BY_ID = {item["model_id"]: item for item in MODELOS}
+MODEL_ID_BY_KEY = {
+    (norm(item["capacidad"]), norm(item["proveedor"]), norm(item["modelo"])): item["model_id"]
+    for item in MODELOS
+}
 
 
 class PalletInfo(BaseModel):
@@ -313,6 +348,15 @@ class CsvReplaceRequest(BaseModel):
     csv_text: str = Field(min_length=1, max_length=5_000_000)
 
 
+class MasterModel(BaseModel):
+    model_id: str
+    capacidad: str
+    proveedor: str
+    modelo: str
+    sku_bgh: Optional[str] = None
+    pnb: Optional[str] = None
+
+
 def require_admin(x_api_key: Optional[str] = Header(default=None, alias="X-API-Key")) -> bool:
     configured_key = os.getenv("ADMIN_API_KEY")
     if not configured_key:
@@ -328,6 +372,92 @@ def require_catalog_model(capacidad: str, proveedor: str, modelo: str) -> None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Modelo no encontrado en el catálogo")
 
 
+def resolve_model(model_id: str) -> Dict[str, Any]:
+    identity = MODELS_BY_ID.get(model_id)
+    if not identity:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "model_id no encontrado")
+    return identity
+
+
+def resolve_model_id(capacidad: str, proveedor: str, modelo: str) -> Optional[str]:
+    return MODEL_ID_BY_KEY.get((norm(capacidad), norm(proveedor), norm(modelo)))
+
+
+def valid_iso_date(value: Any) -> bool:
+    if not value:
+        return True
+    try:
+        date.fromisoformat(str(value))
+        return True
+    except ValueError:
+        return False
+
+
+def model_summary(identity: Dict[str, Any]) -> Dict[str, Any]:
+    cap, prov, mod = (norm(identity[field]) for field in ("capacidad", "proveedor", "modelo"))
+    key = model_key(cap, prov, mod)
+    pallet = KB.get(cap, {}).get(prov, {}).get(mod)
+    specs = SPECS.get(cap, {}).get(prov, {}).get(mod)
+    personal = PERSONAL.get(key)
+    layout = LAYOUTS.get(key)
+    tiempos = TIEMPOS.get(key)
+    pallet_warning = bool(pallet and pallet["unidades_por_pallet"] != pallet["capas"] * pallet["cajas_por_capa"])
+    layout_warning = bool(layout and not valid_iso_date(layout.get("fecha")))
+    return {
+        "model_id": identity["model_id"],
+        "identity": identity,
+        "data_status": {
+            "palletizacion": "warning" if pallet_warning else "available" if pallet else "missing",
+            "specs": "available" if specs else "missing",
+            "personal": "available" if personal else "missing",
+            "layout": "warning" if layout_warning else "available" if layout else "missing",
+            "tiempos": "available" if tiempos else "missing",
+        },
+        "palletizacion": pallet,
+        "specs": {line.upper(): value for line, value in (specs or {}).items()} or None,
+        "personal": personal,
+        "layout": layout,
+        "tiempos": tiempos,
+        "warnings": [
+            message for condition, message in [
+                (pallet_warning, "La configuración de pallet no coincide con capas × cajas por capa; requiere validación de Ingeniería/Logística."),
+                (layout_warning, "La fecha del layout no tiene un formato ISO válido; requiere validación humana."),
+            ] if condition
+        ],
+    }
+
+
+def integrity_report() -> Dict[str, Any]:
+    pallet_keys = {(cap, prov, mod) for cap, providers in KB.items() for prov, models in providers.items() for mod in models}
+    spec_keys = {(cap, prov, mod) for cap, providers in SPECS.items() for prov, models in providers.items() for mod in models}
+    master_keys = set(MODEL_ID_BY_KEY)
+    json_keys = {
+        "personal": set(PERSONAL), "layout": set(LAYOUTS), "tiempos": set(TIEMPOS),
+    }
+    key_label = lambda key: "/".join(key)
+    master_json_keys = {model_key(*key) for key in master_keys}
+    duplicate_skus: Dict[str, List[str]] = {}
+    for item in MODELOS:
+        sku = item.get("sku_bgh")
+        if sku:
+            duplicate_skus.setdefault(sku, []).append(item["model_id"])
+    return {
+        "model_count": len(MODELOS),
+        "products_without_master_identity": sorted(key_label(key) for key in pallet_keys - master_keys),
+        "master_models_without_pallet": sorted(key_label(key) for key in master_keys - pallet_keys),
+        "specs_without_product": sorted(key_label(key) for key in spec_keys - pallet_keys),
+        "products_without_specs": sorted(key_label(key) for key in pallet_keys - spec_keys),
+        "products_without_personal": sorted(key_label(key) for key in master_keys if model_key(*key) not in json_keys["personal"]),
+        "products_without_layout": sorted(key_label(key) for key in master_keys if model_key(*key) not in json_keys["layout"]),
+        "products_without_tiempos": sorted(key_label(key) for key in master_keys if model_key(*key) not in json_keys["tiempos"]),
+        "orphan_personal_keys": sorted(json_keys["personal"] - master_json_keys),
+        "orphan_layout_keys": sorted(json_keys["layout"] - master_json_keys),
+        "orphan_tiempos_keys": sorted(json_keys["tiempos"] - master_json_keys),
+        "duplicate_sku_references": {sku: ids for sku, ids in duplicate_skus.items() if len(ids) > 1},
+        "models_with_warnings": [item["model_id"] for item in MODELOS if "warning" in model_summary(item)["data_status"].values()],
+    }
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "version": app.version}
@@ -341,6 +471,26 @@ def catalogo():
 @app.get("/lineas", response_model=List[str])
 def lineas():
     return sorted({line.upper() for capacities in SPECS.values() for providers in capacities.values() for models in providers.values() for line in models})
+
+
+@app.get("/modelos", response_model=List[MasterModel])
+def get_models():
+    return MODELOS
+
+
+@app.get("/modelos/integridad")
+def get_integrity_report():
+    return integrity_report()
+
+
+@app.get("/modelos/{model_id}", response_model=MasterModel)
+def get_model(model_id: str):
+    return resolve_model(model_id)
+
+
+@app.get("/modelos/{model_id}/resumen")
+def get_model_summary(model_id: str):
+    return model_summary(resolve_model(model_id))
 
 
 @app.get("/pallets", response_model=PalletInfo)
@@ -489,11 +639,17 @@ def replace_specs(body: CsvReplaceRequest):
 
 @app.post("/reload", dependencies=[Depends(require_admin)])
 def reload_all():
-    global KB, SPECS, PERSONAL, LAYOUTS, TIEMPOS
+    global KB, SPECS, PERSONAL, LAYOUTS, TIEMPOS, MODELOS, MODELS_BY_ID, MODEL_ID_BY_KEY
     KB, SPECS = load_knowledge(CSV_PATH), load_specs(ESPEC_PATH)
     PERSONAL = load_json(PERSONAL_PATH, "personal de línea")
     LAYOUTS = load_json(LAYOUTS_PATH, "layouts")
     TIEMPOS = load_json(TIEMPOS_PATH, "tiempos de línea")
+    MODELOS = load_models(MODELOS_PATH)
+    MODELS_BY_ID = {item["model_id"]: item for item in MODELOS}
+    MODEL_ID_BY_KEY = {
+        (norm(item["capacidad"]), norm(item["proveedor"]), norm(item["modelo"])): item["model_id"]
+        for item in MODELOS
+    }
     return {"status": "all_reloaded"}
 
 

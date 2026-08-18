@@ -448,6 +448,10 @@
     <div class="topbar">
       <div class="topbar-title" id="topbar-title">Palletización</div>
       <div class="topbar-right">
+        <div id="active-model-indicator" class="status-pill" title="Modelo activo">
+          <span class="dot"></span><span id="active-model-text">Sin modelo activo</span>
+          <button class="btn btn-sm hidden" id="change-model-btn" onclick="changeActiveModel()">Cambiar</button>
+        </div>
         <div class="api-input-wrap">
           <span class="api-label">API URL</span>
           <input class="api-input" id="baseUrl" value="http://127.0.0.1:8000" />
@@ -474,7 +478,7 @@
             </div>
             <div class="field">
               <label>Modelo</label>
-              <select id="p-mod"></select>
+              <select id="p-mod" onchange="onModelChange('p')"></select>
             </div>
             <div class="field">
               <label>Cantidad de unidades</label>
@@ -517,7 +521,7 @@
             </div>
             <div class="field">
               <label>Modelo</label>
-              <select id="f-mod"></select>
+              <select id="f-mod" onchange="onModelChange('f')"></select>
             </div>
           </div>
           <div class="mt-16">
@@ -547,7 +551,7 @@
             </div>
             <div class="field">
               <label>Modelo</label>
-              <select id="per-mod"></select>
+              <select id="per-mod" onchange="onModelChange('per')"></select>
             </div>
           </div>
           <div class="mt-16">
@@ -577,7 +581,7 @@
             </div>
             <div class="field">
               <label>Modelo</label>
-              <select id="s-mod"></select>
+              <select id="s-mod" onchange="onModelChange('s')"></select>
             </div>
             <div class="field">
               <label>Línea</label>
@@ -721,7 +725,7 @@
             </div>
             <div class="field">
               <label>Modelo</label>
-              <select id="l-mod"></select>
+              <select id="l-mod" onchange="onModelChange('l')"></select>
             </div>
           </div>
           <div class="mt-16 flex gap-8 flex-wrap">
@@ -756,7 +760,7 @@
             </div>
             <div class="field">
               <label>Modelo</label>
-              <select id="t-mod"></select>
+              <select id="t-mod" onchange="onModelChange('t')"></select>
             </div>
             <div class="field">
               <label>Límite segundos</label>
@@ -869,13 +873,17 @@ function setGlobalStatus(text, kind = '') {
 
 /* ── Catalogue helpers ─────────────────── */
 let CATALOGUE = [];
+let MASTER_MODELS = [];
+let activeModel = null;
+let SYNCING_ACTIVE = false;
 let LINEAS    = ['L01', 'L03'];
 
 async function loadCatalogo() {
   try {
-    CATALOGUE = await api('/catalogo');
+    [CATALOGUE, MASTER_MODELS] = await Promise.all([api('/catalogo'), api('/modelos')]);
     setGlobalStatus('Conectado', 'ok');
     populateCaps();
+    restoreActiveModel();
   } catch(e) {
     setGlobalStatus('Sin conexión', 'err');
   }
@@ -914,7 +922,10 @@ function onProvChange(pfx) {
   const mods = [...new Set(CATALOGUE.filter(i => i.capacidad === cap && i.proveedor === prov).map(i => i.modelo))].sort();
   const modSel = document.getElementById(pfx + '-mod');
   modSel.innerHTML = '<option value="">— Modelo —</option>' + mods.map(m => `<option>${m}</option>`).join('');
-  if (mods.length === 1) modSel.value = mods[0];
+  if (mods.length === 1) {
+    modSel.value = mods[0];
+    if (!SYNCING_ACTIVE) onModelChange(pfx);
+  }
 }
 
 function getSel(pfx) {
@@ -923,6 +934,70 @@ function getSel(pfx) {
     prov: document.getElementById(pfx + '-prov').value,
     mod:  document.getElementById(pfx + '-mod').value,
   };
+}
+
+function findMasterModel(cap, prov, mod) {
+  return MASTER_MODELS.find(item => item.capacidad === cap && item.proveedor === prov && item.modelo === mod) || null;
+}
+
+function onModelChange(pfx) {
+  if (SYNCING_ACTIVE) return;
+  const { cap, prov, mod } = getSel(pfx);
+  if (!cap || !prov || !mod) return;
+  const identity = findMasterModel(cap, prov, mod);
+  if (identity) setActiveModel(identity);
+}
+
+function syncSelections(identity) {
+  SYNCING_ACTIVE = true;
+  try {
+    PREFIXES.forEach(pfx => {
+      const cap = document.getElementById(pfx + '-cap');
+      if (!cap) return;
+      cap.value = identity.capacidad;
+      onCapChange(pfx);
+      document.getElementById(pfx + '-prov').value = identity.proveedor;
+      onProvChange(pfx);
+      document.getElementById(pfx + '-mod').value = identity.modelo;
+    });
+  } finally {
+    SYNCING_ACTIVE = false;
+  }
+}
+
+function setActiveModel(identity, persist = true) {
+  activeModel = identity;
+  syncSelections(identity);
+  const label = `${identity.capacidad.toUpperCase()} | ${identity.proveedor.toUpperCase()} | ${identity.modelo.toUpperCase()}`;
+  document.getElementById('active-model-text').textContent = `${label} · ${identity.model_id}`;
+  document.getElementById('active-model-indicator').classList.add('ok');
+  document.getElementById('change-model-btn').classList.remove('hidden');
+  if (persist) sessionStorage.setItem('ACTIVE_MODEL_ID', identity.model_id);
+}
+
+function restoreActiveModel() {
+  const modelId = sessionStorage.getItem('ACTIVE_MODEL_ID');
+  if (!modelId) return;
+  const identity = MASTER_MODELS.find(item => item.model_id === modelId);
+  if (identity) setActiveModel(identity, false);
+  else sessionStorage.removeItem('ACTIVE_MODEL_ID');
+}
+
+function changeActiveModel() {
+  activeModel = null;
+  sessionStorage.removeItem('ACTIVE_MODEL_ID');
+  document.getElementById('active-model-text').textContent = 'Sin modelo activo';
+  document.getElementById('active-model-indicator').classList.remove('ok');
+  document.getElementById('change-model-btn').classList.add('hidden');
+  switchPage('pallets', document.querySelector('[data-page="pallets"]'));
+  document.getElementById('p-cap').focus();
+}
+
+function activeModelForSelection(pfx) {
+  const selection = getSel(pfx);
+  const identity = findMasterModel(selection.cap, selection.prov, selection.mod);
+  if (identity && (!activeModel || activeModel.model_id !== identity.model_id)) setActiveModel(identity);
+  return identity;
 }
 
 function syncLayoutSelectionFromFicha(cap, prov, mod) {
@@ -1068,7 +1143,11 @@ async function showFicha() {
   const { cap, prov, mod } = getSel('f');
   const el = document.getElementById('ficha-result');
   if (!cap || !prov || !mod) { el.innerHTML = alert_html('warn', 'Seleccioná los tres campos.'); return; }
+  const identity = activeModelForSelection('f');
+  if (!identity) { el.innerHTML = alert_html('err', 'El modelo no existe en el catálogo maestro.'); return; }
   try {
+    const summary = await api(`/modelos/${encodeURIComponent(identity.model_id)}/resumen`);
+    el.innerHTML = renderModelSummary(summary);
     const [info, personal, layout] = await Promise.all([
       api(`/pallets?capacidad=${encodeURIComponent(cap)}&proveedor=${encodeURIComponent(prov)}&modelo=${encodeURIComponent(mod)}`),
       apiOptional(`/personal?capacidad=${encodeURIComponent(cap)}&proveedor=${encodeURIComponent(prov)}&modelo=${encodeURIComponent(mod)}`),
@@ -1076,6 +1155,48 @@ async function showFicha() {
     ]);
     el.innerHTML = renderFicha(info, personal, cap, prov, mod, layout);
   } catch(e) { el.innerHTML = alert_html('err', e.message); }
+}
+
+function renderModelSummary(summary) {
+  const identity = summary.identity;
+  const pallet = summary.palletizacion;
+  const personal = summary.personal;
+  const tiempos = summary.tiempos;
+  const specs = summary.specs || {};
+  const specLines = Object.keys(specs);
+  const firstSpec = specLines.length ? specs[specLines[0]] : null;
+  const totalPeople = personal?.tramos?.reduce((sum, tramo) => sum + (Number(tramo.personas) || 0), 0);
+  const criticalTime = tiempos?.tiempos?.length ? Math.max(...tiempos.tiempos) : null;
+  const statusLabels = {palletizacion:'Palletización', specs:'Especificaciones', personal:'Dotación', layout:'Layout', tiempos:'Tiempos'};
+  const statusBadges = Object.entries(summary.data_status).map(([key, value]) => {
+    const config = value === 'available' ? ['badge-green','✓ Disponible'] : value === 'warning' ? ['badge-warn','⚠ Advertencia'] : ['badge-gray','— Faltante'];
+    return `<div class="metric"><div class="metric-label">${statusLabels[key]}</div><span class="badge ${config[0]}">${config[1]}</span></div>`;
+  }).join('');
+  const metrics = [
+    pallet ? ['Unidades / pallet', pallet.unidades_por_pallet, 'unidades'] : null,
+    personal ? ['Dotación total', totalPeople, 'personas'] : null,
+    tiempos ? ['Ciclo límite', tiempos.limite, 'segundos'] : null,
+    criticalTime !== null ? ['Puesto crítico', criticalTime, 'segundos'] : null,
+    specLines.length ? ['Líneas', specLines.join(', '), `${specLines.length} configuración(es)`] : null,
+    firstSpec?.refrigerante ? ['Refrigerante', firstSpec.refrigerante, 'ficha técnica'] : null,
+  ].filter(Boolean).map(([label, value, unit]) => `<div class="metric"><div class="metric-label">${htmlEscape(label)}</div><div class="metric-value" style="font-size:20px">${htmlEscape(value)}</div><div class="metric-sub">${htmlEscape(unit)}</div></div>`).join('');
+
+  return `
+    <div class="card" style="border-left:3px solid var(--accent)">
+      <div class="flex justify-between flex-wrap gap-8">
+        <div>
+          <div class="card-title" style="margin-bottom:6px">Modelo activo · ${htmlEscape(identity.model_id)}</div>
+          <div class="fw-600" style="font-size:18px">${htmlEscape(identity.capacidad.toUpperCase())} · ${htmlEscape(identity.proveedor.toUpperCase())} · ${htmlEscape(identity.modelo.toUpperCase())}</div>
+          <div class="text-hint mt-4">SKU: <code>${htmlEscape(identity.sku_bgh || 'No registrado')}</code>${identity.pnb ? ` · PNB: <code>${htmlEscape(identity.pnb)}</code>` : ''}</div>
+        </div>
+      </div>
+      ${summary.warnings.map(message => alert_html('warn', htmlEscape(message))).join('')}
+      <hr>
+      <div class="card-title">Estado de información</div>
+      <div class="grid-auto mb-12">${statusBadges}</div>
+      <div class="card-title mt-20">Métricas disponibles</div>
+      <div class="grid-auto">${metrics || '<span class="text-muted">No hay métricas disponibles.</span>'}</div>
+    </div>`;
 }
 
 function renderFicha(info, per, cap, prov, mod, layout = null) {

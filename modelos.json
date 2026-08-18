@@ -1,0 +1,162 @@
+[
+  {
+    "model_id": "mdl_000001",
+    "capacidad": "12k",
+    "proveedor": "hisense",
+    "modelo": "inv",
+    "sku_bgh": "UC.SPL.F/C BSIC35WCKW",
+    "pnb": null
+  },
+  {
+    "model_id": "mdl_000002",
+    "capacidad": "12k",
+    "proveedor": "midea",
+    "modelo": "inv",
+    "sku_bgh": "UC.SPL.F/C BSIC37WCNX",
+    "pnb": "PNB045740"
+  },
+  {
+    "model_id": "mdl_000003",
+    "capacidad": "12k",
+    "proveedor": "midea",
+    "modelo": "on-off",
+    "sku_bgh": "UC.SPL.F/C BSC35WCDW",
+    "pnb": "PNB045734"
+  },
+  {
+    "model_id": "mdl_000004",
+    "capacidad": "12k",
+    "proveedor": "midea-ssg",
+    "modelo": "inv",
+    "sku_bgh": "UC.SPL.F/C AR40F12C0AMZBG",
+    "pnb": null
+  },
+  {
+    "model_id": "mdl_000005",
+    "capacidad": "12k",
+    "proveedor": "tcl",
+    "modelo": "inv",
+    "sku_bgh": "UC.SPL.F/C BSIC35WCLW",
+    "pnb": "PNB045690"
+  },
+  {
+    "model_id": "mdl_000006",
+    "capacidad": "12k",
+    "proveedor": "tcl",
+    "modelo": "on-off",
+    "sku_bgh": "UC.SPL.F/C ASC35WCEW",
+    "pnb": null
+  },
+  {
+    "model_id": "mdl_000007",
+    "capacidad": "12k",
+    "proveedor": "tcl",
+    "modelo": "wifi inv",
+    "sku_bgh": "UC.SPL.F/C BSIC35WCLW",
+    "pnb": "PNB045806"
+  },
+  {
+    "model_id": "mdl_000008",
+    "capacidad": "18k",
+    "proveedor": "midea",
+    "modelo": "inv",
+    "sku_bgh": "UC.SPL.F/C BSIC55WCNX",
+    "pnb": "PNB045742"
+  },
+  {
+    "model_id": "mdl_000009",
+    "capacidad": "18k",
+    "proveedor": "midea",
+    "modelo": "on-off",
+    "sku_bgh": "UC.SPL.F/C BSC54WCDW",
+    "pnb": "PNB045736"
+  },
+  {
+    "model_id": "mdl_000010",
+    "capacidad": "18k",
+    "proveedor": "midea-ssg",
+    "modelo": "inv",
+    "sku_bgh": "UC.SPL.F/C AR40F18C0AMZBG",
+    "pnb": null
+  },
+  {
+    "model_id": "mdl_000011",
+    "capacidad": "18k",
+    "proveedor": "tcl",
+    "modelo": "inv",
+    "sku_bgh": "UC.SPL.F/C BSIC52WCLW",
+    "pnb": null
+  },
+  {
+    "model_id": "mdl_000012",
+    "capacidad": "18k",
+    "proveedor": "tcl",
+    "modelo": "on-off",
+    "sku_bgh": "UC.SPL.F/C BSC52WCEW",
+    "pnb": null
+  },
+  {
+    "model_id": "mdl_000013",
+    "capacidad": "18k",
+    "proveedor": "tcl",
+    "modelo": "wifi inv",
+    "sku_bgh": "UC.SPL.F/C BSIC52WCLW",
+    "pnb": "PNB045808"
+  },
+  {
+    "model_id": "mdl_000014",
+    "capacidad": "24k",
+    "proveedor": "midea",
+    "modelo": "inv",
+    "sku_bgh": "UC.SPL.F/C BSIC67WCNX",
+    "pnb": null
+  },
+  {
+    "model_id": "mdl_000015",
+    "capacidad": "24k",
+    "proveedor": "midea",
+    "modelo": "on-off",
+    "sku_bgh": "UC.SPL.F/C BSC70WCDW",
+    "pnb": null
+  },
+  {
+    "model_id": "mdl_000016",
+    "capacidad": "24k",
+    "proveedor": "midea-ssg",
+    "modelo": "inv",
+    "sku_bgh": "UC.SPL.F/C AR40F24C0AMZBG",
+    "pnb": null
+  },
+  {
+    "model_id": "mdl_000017",
+    "capacidad": "24k",
+    "proveedor": "tcl",
+    "modelo": "inv",
+    "sku_bgh": "UC.SPL.F/C BSIC65WCLW",
+    "pnb": null
+  },
+  {
+    "model_id": "mdl_000018",
+    "capacidad": "24k",
+    "proveedor": "tcl",
+    "modelo": "on-off",
+    "sku_bgh": "UC.SPL.F/C BSC65WCEW",
+    "pnb": null
+  },
+  {
+    "model_id": "mdl_000019",
+    "capacidad": "9k",
+    "proveedor": "midea",
+    "modelo": "on-off",
+    "sku_bgh": "UC.SPL.F/C BSC26WCDW",
+    "pnb": null
+  },
+  {
+    "model_id": "mdl_000020",
+    "capacidad": "9k",
+    "proveedor": "tcl",
+    "modelo": "on-off",
+    "sku_bgh": "UC.SPL.F/C ASC26WCEW_V2",
+    "pnb": null
+  }
+]

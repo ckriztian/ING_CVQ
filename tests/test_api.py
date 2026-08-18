@@ -212,3 +212,57 @@ def test_corrupt_json_is_not_treated_as_empty(tmp_path):
     path.write_text("{not-json", encoding="utf-8")
     with pytest.raises(RuntimeError, match="JSON inválido"):
         main.load_json(path, "archivo de prueba")
+
+
+def test_master_catalog_has_unique_ids_and_product_keys(client):
+    models = client.get("/modelos").json()
+    ids = [item["model_id"] for item in models]
+    keys = [(item["capacidad"], item["proveedor"], item["modelo"]) for item in models]
+    assert len(models) == 20
+    assert len(ids) == len(set(ids))
+    assert len(keys) == len(set(keys))
+
+
+def test_get_existing_and_missing_master_model(client):
+    response = client.get("/modelos/mdl_000002")
+    assert response.status_code == 200
+    assert response.json()["sku_bgh"] == "UC.SPL.F/C BSIC37WCNX"
+    assert client.get("/modelos/mdl_999999").status_code == 404
+
+
+def test_model_resolution_is_bidirectional():
+    identity = main.resolve_model("mdl_000002")
+    assert (identity["capacidad"], identity["proveedor"], identity["modelo"]) == ("12k", "midea", "inv")
+    assert main.resolve_model_id("12K", " Midea ", "INV") == "mdl_000002"
+
+
+def test_complete_model_summary(client):
+    response = client.get("/modelos/mdl_000002/resumen")
+    assert response.status_code == 200
+    summary = response.json()
+    assert set(summary["data_status"].values()) == {"available"}
+    assert sorted(summary["specs"]) == ["L01", "L03"]
+
+
+def test_partial_model_summary_and_missing_model(client):
+    summary = client.get("/modelos/mdl_000001/resumen").json()
+    assert summary["data_status"]["palletizacion"] == "available"
+    assert summary["data_status"]["specs"] == "missing"
+    assert summary["personal"] is None
+    assert client.get("/modelos/mdl_999999/resumen").status_code == 404
+
+
+def test_summary_reports_known_warnings(client):
+    pallet_warning = client.get("/modelos/mdl_000014/resumen").json()
+    assert pallet_warning["data_status"]["palletizacion"] == "warning"
+    assert pallet_warning["warnings"]
+    layout_warning = client.get("/modelos/mdl_000008/resumen").json()
+    assert layout_warning["data_status"]["layout"] == "warning"
+
+
+def test_integrity_report_identifies_orphans_and_ambiguities(client):
+    report = client.get("/modelos/integridad").json()
+    assert report["model_count"] == 20
+    assert report["products_without_master_identity"] == []
+    assert "9k/midea/inv" in report["specs_without_product"]
+    assert "UC.SPL.F/C BSIC35WCLW" in report["duplicate_sku_references"]
