@@ -26,7 +26,6 @@ ESPEC_PATH = BASE_DIR / "especificaciones.csv"
 PERSONAL_PATH = BASE_DIR / "personal_linea.json"
 LAYOUTS_PATH = BASE_DIR / "layouts.json"
 TIEMPOS_PATH = BASE_DIR / "tiempos_linea.json"
-MODELOS_PATH = BASE_DIR / "modelos.json"
 
 PALLET_COLUMNS = [
     "capacidad", "proveedor", "modelo", "unidades_por_pallet", "capas",
