@@ -4,9 +4,7 @@ Aplicación interna de Ingeniería formada por una API FastAPI y un frontend HTM
 
 ## Requisitos e instalación
 
-- Python 3.11, 3.12 o 3.13. Python 3.14 todavía emite advertencias de
-  compatibilidad desde la capa Pydantic V1 incluida por FastAPI y no forma parte
-  de la matriz soportada de este proyecto.
+- Python 3.11 o posterior.
 
 ```bash
 python -m venv .venv
@@ -60,24 +58,6 @@ python -m http.server 5500
 ```
 
 Luego abra `http://127.0.0.1:5500` y mantenga `http://127.0.0.1:8000` como URL de API.
-
-### Windows y solución de problemas de arranque
-
-En Windows se recomienda seleccionar explícitamente una versión compatible:
-
-```powershell
-py -3.13 -m venv .venv
-.venv\Scripts\activate
-python -m pip install -r requirements.txt
-python -m uvicorn main:app --reload
-```
-
-El archivo `modelos.json` debe estar junto a `main.py`. La ruta se resuelve desde
-`Path(__file__).resolve().parent` mediante `MODELOS_PATH`, por lo que iniciar
-Uvicorn desde otro directorio no cambia dónde se busca el catálogo. Si aparece
-un `NameError` relacionado con `MODELOS_PATH`, la copia de `main.py` está
-incompleta o desactualizada: confirme que contiene la declaración de la ruta y
-actualice todos los archivos de la misma revisión antes de iniciar el servidor.
 
 ## Arquitectura actual
 

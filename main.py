@@ -21,24 +21,11 @@ logger = logging.getLogger("bgh_sistema_experto")
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 
 BASE_DIR = Path(__file__).resolve().parent
-DATA_PATHS = {
-    "palletizacion": BASE_DIR / "palletizacion.csv",
-    "especificaciones": BASE_DIR / "especificaciones.csv",
-    "personal": BASE_DIR / "personal_linea.json",
-    "layouts": BASE_DIR / "layouts.json",
-    "tiempos": BASE_DIR / "tiempos_linea.json",
-    "modelos": BASE_DIR / "modelos.json",
-}
-
-# Alias conservados porque las pruebas y las operaciones administrativas aíslan
-# cada fuente sustituyendo su ruta. Todas las rutas, incluido MODELOS_PATH, se
-# crean juntas antes de cargar cualquier archivo durante la importación Uvicorn.
-CSV_PATH = DATA_PATHS["palletizacion"]
-ESPEC_PATH = DATA_PATHS["especificaciones"]
-PERSONAL_PATH = DATA_PATHS["personal"]
-LAYOUTS_PATH = DATA_PATHS["layouts"]
-TIEMPOS_PATH = DATA_PATHS["tiempos"]
-MODELOS_PATH = DATA_PATHS["modelos"]
+CSV_PATH = BASE_DIR / "palletizacion.csv"
+ESPEC_PATH = BASE_DIR / "especificaciones.csv"
+PERSONAL_PATH = BASE_DIR / "personal_linea.json"
+LAYOUTS_PATH = BASE_DIR / "layouts.json"
+TIEMPOS_PATH = BASE_DIR / "tiempos_linea.json"
 
 PALLET_COLUMNS = [
     "capacidad", "proveedor", "modelo", "unidades_por_pallet", "capas",
