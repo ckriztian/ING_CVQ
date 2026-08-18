@@ -1,0 +1,13 @@
+# 1) Crear venv (opcional)
+python -m venv .venv
+#   Activar:
+#   Windows: .venv\Scripts\activate
+#   Linux/Mac: source .venv/bin/activate
+
+# 2) Instalar dependencias
+pip install fastapi uvicorn pandas pydantic
+
+# 3) Correr API
+python main.py
+# o
+uvicorn main:app --reload --port 8000

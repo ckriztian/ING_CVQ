@@ -1,0 +1,21 @@
+capacidad,proveedor,modelo,unidades_por_pallet,capas,cajas_por_capa,dim_pallet_l_mm,dim_pallet_a_mm,dim_pallet_h_mm,peso_unitario_kg,peso_max_pallet_kg,apilable_hasta,orientacion,embalaje,sku,notas
+12k,midea,inv,12,3,4,720,495,270,20.3,400,1,horizontal,Caja c/et. R32,UC.SPL.F/C BSIC37WCNX,KD2.0 12K INVERTER
+12k,midea-ssg,inv,12,3,4,720,495,270,20.3,400,1,horizontal,caja reforzada,UC.SPL.F/C AR40F12C0AMZBG,KD1.0 12K INVERTER
+12k,tcl,inv,12,3,4,720,495,270,20.3,400,1,horizontal,caja estándar,UC.SPL.F/C BSIC35WCLW,T-PRO 12K INVERTER
+12k,tcl,wifi inv,12,3,4,720,495,270,20.3,400,1,horizontal,caja estándar,UC.SPL.F/C BSIC35WCLW,T-PRO 2 12K INVERTER
+12k,hisense,inv,12,3,4,720,495,270,20.3,400,1,horizontal,caja reforzada,UC.SPL.F/C BSIC35WCKW,PERLA 12K INVERTER
+18k,midea,inv,12,3,4,950,400,300,48,720,1,horizontal,caja estándar,UC.SPL.F/C BSIC55WCNX,KD2.0 18K INVERTER
+18k,midea-ssg,inv,12,3,4,950,400,300,48,720,1,horizontal,caja estándar,UC.SPL.F/C AR40F18C0AMZBG,KD1.0 18K INVERTER
+18k,tcl,inv,12,3,4,950,400,300,48,720,1,horizontal,caja estándar,UC.SPL.F/C BSIC52WCLW,T-PRO 18K INVERTER
+18k,tcl,wifi inv,12,3,4,950,400,300,48,720,1,horizontal,caja estándar,UC.SPL.F/C BSIC52WCLW,T-PRO 2 18K INVERTER
+24k,midea,inv,9,2,4,1000,420,350,55,800,1,horizontal,caja reforzada,UC.SPL.F/C BSIC67WCNX,KD2.0 24K INVERTER
+24k,midea-ssg,inv,9,2,4,1000,420,350,55,800,1,horizontal,caja reforzada,UC.SPL.F/C AR40F24C0AMZBG,KD1.0 24K INVERTER
+24k,tcl,inv,9,2,4,1000,420,350,55,800,1,horizontal,caja reforzada,UC.SPL.F/C BSIC65WCLW,T-PRO 24K INVERTER
+9k,midea,on-off,15,3,5,800,300,200,28,560,1,horizontal,caja reforzada,UC.SPL.F/C BSC26WCDW,AG ON-OFF 9K
+9k,tcl,on-off,15,3,5,800,300,200,28,560,1,horizontal,caja reforzada,UC.SPL.F/C ASC26WCEW_V2,ELITE ON-OFF 9K
+12k,midea,on-off,12,3,4,720,340,240,33,400,1,horizontal,caja estándar,UC.SPL.F/C BSC35WCDW,AG ON-OFF 12K
+12k,tcl,on-off,12,3,4,720,340,240,33,400,1,horizontal,caja estándar,UC.SPL.F/C ASC35WCEW,ELITE ON-OFF 12K
+18k,midea,on-off,12,3,4,950,400,300,48,720,1,horizontal,caja estándar,UC.SPL.F/C BSC54WCDW,AG ON-OFF 18K
+18k,tcl,on-off,12,3,4,950,400,300,48,720,1,horizontal,caja estándar,UC.SPL.F/C BSC52WCEW,ELITE ON-OFF 18K
+24k,midea,on-off,9,3,3,1000,420,350,55,800,1,horizontal,caja reforzada,UC.SPL.F/C BSC70WCDW,AG ON-OFF 24K
+24k,tcl,on-off,9,3,3,1000,420,350,55,800,1,horizontal,caja reforzada,UC.SPL.F/C BSC65WCEW,ELITE ON-OFF 24K

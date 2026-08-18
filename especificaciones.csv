@@ -1,0 +1,9 @@
+capacidad,proveedor,modelo,linea,btus,consumo_w,eficiencia_seer,ruido_ui_db,ruido_ue_db,ui_dim_mm_l,ui_dim_mm_a,ui_dim_mm_h,ue_dim_mm_l,ue_dim_mm_a,ue_dim_mm_h,refrigerante,nota
+9k,midea,inv,L01,9000,780,17,31,49,780,290,200,770,540,260,R32,Versión L01 con mayor eficiencia
+9k,midea,inv,L03,9000,800,16,33,51,785,295,205,780,545,265,R32,Línea L03 con calibración distinta
+12k,midea,inv,L01,12000,970,18,32,50,805,310,210,770,545,260,R32,Boquilla estándar
+12k,midea,inv,L03,12000,920,19,30,48,810,315,215,775,550,265,R32,Boquilla L03 optimizada
+12k,tcl, wifi inv,L03,12000,920,19,30,48,810,315,215,775,550,265,R32,Boquilla L03 optimizada
+18k,tcl,inv,L01,18000,1500,15,36,56,870,320,230,850,570,275,R32,Compresor L01
+18k,tcl,inv,L03,18000,1420,16,34,54,875,325,235,855,575,280,R32,Versión silenciosa
+18k,tcl,wifi inv,L03,18000,1420,16,34,54,875,325,235,855,575,280,R32,Versión silenciosa

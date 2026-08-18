@@ -1,0 +1,777 @@
+{
+  "12k_midea_inv": {
+    "nombre_modelo": " UC.SPL.F/C BSIC37WCNX",
+    "ot": "Midea KD2.0 12K INV",
+    "pnb": " PNB045740",
+    "tramos": [
+      {
+        "nombre": "Desembalaje (mockup)",
+        "personas": 14
+      },
+      {
+        "nombre": "Abastecimiento (mockup)",
+        "personas": 3
+      },
+      {
+        "nombre": "Tramo 1",
+        "personas": 12
+      },
+      {
+        "nombre": "Tramo 2",
+        "personas": 17
+      },
+      {
+        "nombre": "Calesita de vacío",
+        "personas": 7
+      },
+      {
+        "nombre": "Cargadoras",
+        "personas": 2
+      },
+      {
+        "nombre": "Selladora",
+        "personas": 1
+      },
+      {
+        "nombre": "Tramo 3",
+        "personas": 13
+      },
+      {
+        "nombre": "Tramo 4",
+        "personas": 6
+      },
+      {
+        "nombre": "Calesita de soldadura",
+        "personas": 8
+      },
+      {
+        "nombre": "Caja control",
+        "personas": 7
+      },
+      {
+        "nombre": "Calesita de prueba funcional",
+        "personas": 5
+      },
+      {
+        "nombre": "Embalaje",
+        "personas": 5
+      },
+      {
+        "nombre": "Almaceneros de materiales",
+        "personas": 5
+      },
+      {
+        "nombre": "Reparadores de ensamble",
+        "personas": 7
+      },
+      {
+        "nombre": "Reparador y relevo de soldadura",
+        "personas": 1
+      },
+      {
+        "nombre": "Reparador de paneles",
+        "personas": 1
+      },
+      {
+        "nombre": "Relevos",
+        "personas": 12
+      },
+      {
+        "nombre": "Auxiliares de línea",
+        "personas": 2
+      },
+      {
+        "nombre": "Desvíos (Desembalaje)",
+        "personas": 2
+      }
+    ]
+  },
+  "12k_midea_on-off": {
+    "nombre_modelo": " UC.SPL.F/C BSC35WCDW",
+    "ot": "",
+    "pnb": "PNB045734",
+    "tramos": [
+      {
+        "nombre": "Desembalaje (mockup)",
+        "personas": 14
+      },
+      {
+        "nombre": "Abastecimiento (mockup)",
+        "personas": 3
+      },
+      {
+        "nombre": "Tramo 1",
+        "personas": 12
+      },
+      {
+        "nombre": "Tramo 2",
+        "personas": 16
+      },
+      {
+        "nombre": "Calesita de vacío",
+        "personas": 5
+      },
+      {
+        "nombre": "Cargadoras",
+        "personas": 2
+      },
+      {
+        "nombre": "Selladora",
+        "personas": 1
+      },
+      {
+        "nombre": "Tramo 3",
+        "personas": 12
+      },
+      {
+        "nombre": "Tramo 4",
+        "personas": 6
+      },
+      {
+        "nombre": "Calesita de soldadura",
+        "personas": 8
+      },
+      {
+        "nombre": "Caja control",
+        "personas": 5
+      },
+      {
+        "nombre": "Calesita de prueba funcional",
+        "personas": 5
+      },
+      {
+        "nombre": "Embalaje",
+        "personas": 5
+      },
+      {
+        "nombre": "Almaceneros de materiales",
+        "personas": 5
+      },
+      {
+        "nombre": "Reparadores",
+        "personas": 7
+      },
+      {
+        "nombre": "Reparador y relevo de soldadura",
+        "personas": 1
+      },
+      {
+        "nombre": "Reparador de paneles",
+        "personas": 1
+      },
+      {
+        "nombre": "Relevos",
+        "personas": 11
+      },
+      {
+        "nombre": "Auxiliares de línea",
+        "personas": 2
+      },
+      {
+        "nombre": "Desvíos (Desembalaje)",
+        "personas": 2
+      }
+    ]
+  },
+  "18k_midea_on-off": {
+    "nombre_modelo": "UC.SPL.F/C BSC54WCDW",
+    "ot": "",
+    "pnb": "PNB045736",
+    "tramos": [
+      {
+        "nombre": "Desembalaje (mockup)",
+        "personas": 14
+      },
+      {
+        "nombre": "Abastecimiento  (mockup)",
+        "personas": 3
+      },
+      {
+        "nombre": "Tramo 1",
+        "personas": 11
+      },
+      {
+        "nombre": "Tramo 2",
+        "personas": 16
+      },
+      {
+        "nombre": "Calesita de vacío",
+        "personas": 4
+      },
+      {
+        "nombre": "Cargadoras",
+        "personas": 2
+      },
+      {
+        "nombre": "Selladora",
+        "personas": 1
+      },
+      {
+        "nombre": "Tramo 3",
+        "personas": 12
+      },
+      {
+        "nombre": "Tramo 4",
+        "personas": 6
+      },
+      {
+        "nombre": "Calesita de soldadura",
+        "personas": 8
+      },
+      {
+        "nombre": "Caja control",
+        "personas": 5
+      },
+      {
+        "nombre": "Calesita de prueba funcional",
+        "personas": 5
+      },
+      {
+        "nombre": "Embalaje",
+        "personas": 5
+      },
+      {
+        "nombre": "Almaceneros de materiales",
+        "personas": 5
+      },
+      {
+        "nombre": "Reparadores",
+        "personas": 7
+      },
+      {
+        "nombre": "Reparador y relevo de soldadura",
+        "personas": 1
+      },
+      {
+        "nombre": "Reparador de paneles",
+        "personas": 1
+      },
+      {
+        "nombre": "Relevos",
+        "personas": 11
+      },
+      {
+        "nombre": "Auxiliares de línea",
+        "personas": 2
+      },
+      {
+        "nombre": "Desvíos (Desembalaje)",
+        "personas": 2
+      }
+    ]
+  },
+  "18k_midea_inv": {
+    "nombre_modelo": "UC.SPL.F/C BSIC55WCNX",
+    "ot": "Midea KD2.0 18K INV",
+    "pnb": "PNB045742",
+    "tramos": [
+      {
+        "nombre": "Desembalaje (Mockup)",
+        "personas": 12
+      },
+      {
+        "nombre": "Abastecimiento (Mockup)",
+        "personas": 3
+      },
+      {
+        "nombre": "Tramo 1",
+        "personas": 11
+      },
+      {
+        "nombre": "Tramo 2",
+        "personas": 16
+      },
+      {
+        "nombre": "Calesita de vacío",
+        "personas": 5
+      },
+      {
+        "nombre": "Cargadoras",
+        "personas": 2
+      },
+      {
+        "nombre": "Selladora",
+        "personas": 1
+      },
+      {
+        "nombre": "Tramo 3",
+        "personas": 13
+      },
+      {
+        "nombre": "Tramo 4",
+        "personas": 5
+      },
+      {
+        "nombre": "Calesita de Soldadura",
+        "personas": 8
+      },
+      {
+        "nombre": "Caja Control",
+        "personas": 7
+      },
+      {
+        "nombre": "Calesita de prueba funcional",
+        "personas": 6
+      },
+      {
+        "nombre": "Embalaje",
+        "personas": 5
+      },
+      {
+        "nombre": "Almaceneros de materiales",
+        "personas": 4
+      },
+      {
+        "nombre": "Reparadores de ensamble",
+        "personas": 7
+      },
+      {
+        "nombre": "Reparador de calesita",
+        "personas": 1
+      },
+      {
+        "nombre": "Reparador de paneles",
+        "personas": 1
+      },
+      {
+        "nombre": "Relevos",
+        "personas": 10
+      },
+      {
+        "nombre": "Auxiliares de línea",
+        "personas": 2
+      },
+      {
+        "nombre": "Desvío (Caja control)",
+        "personas": 1
+      }
+    ]
+  },
+  "18k_midea-ssg_inv": {
+    "nombre_modelo": "UC.SPL.F/C AR40F18C0AMZBG",
+    "ot": "SSG / KD 1.0 INVERTER 18K",
+    "pnb": "AR40F18C0AMZBG",
+    "tramos": [
+      {
+        "nombre": "Desembalaje (Mockup)",
+        "personas": 12
+      },
+      {
+        "nombre": "Abastecimiento (Mockup)",
+        "personas": 3
+      },
+      {
+        "nombre": "Tramo 1",
+        "personas": 11
+      },
+      {
+        "nombre": "Tramo 2",
+        "personas": 16
+      },
+      {
+        "nombre": "Calesita de vacío",
+        "personas": 5
+      },
+      {
+        "nombre": "Cargadoras",
+        "personas": 2
+      },
+      {
+        "nombre": "Selladora",
+        "personas": 1
+      },
+      {
+        "nombre": "Tramo 3",
+        "personas": 14
+      },
+      {
+        "nombre": "Tramo 4",
+        "personas": 7
+      },
+      {
+        "nombre": "Calesita de Soldadura",
+        "personas": 8
+      },
+      {
+        "nombre": "Caja Control",
+        "personas": 7
+      },
+      {
+        "nombre": "Calesita de prueba funcional",
+        "personas": 5
+      },
+      {
+        "nombre": "Embalaje",
+        "personas": 5
+      },
+      {
+        "nombre": "Almaceneros de materiales",
+        "personas": 4
+      },
+      {
+        "nombre": "Reparadores de ensamble",
+        "personas": 7
+      },
+      {
+        "nombre": "Reparador de calesita",
+        "personas": 1
+      },
+      {
+        "nombre": "Reparador de paneles",
+        "personas": 1
+      },
+      {
+        "nombre": "Relevos",
+        "personas": 10
+      },
+      {
+        "nombre": "Auxiliares de línea",
+        "personas": 2
+      }
+    ]
+  },
+  "24k_midea-ssg_inv": {
+    "nombre_modelo": "UC.SPL.F/C AR40F24C0AMZBG",
+    "ot": "SSG / KD 1.0 INVERTER 24K",
+    "pnb": "AR40F24C0AMZBG",
+    "tramos": [
+      {
+        "nombre": "Desembalaje (Mockup)",
+        "personas": 12
+      },
+      {
+        "nombre": "Abastecimiento (Mockup)",
+        "personas": 3
+      },
+      {
+        "nombre": "Tramo 1",
+        "personas": 11
+      },
+      {
+        "nombre": "Tramo 2",
+        "personas": 16
+      },
+      {
+        "nombre": "Calesita de vacío",
+        "personas": 5
+      },
+      {
+        "nombre": "Cargadoras",
+        "personas": 2
+      },
+      {
+        "nombre": "Selladora",
+        "personas": 1
+      },
+      {
+        "nombre": "Tramo 3",
+        "personas": 14
+      },
+      {
+        "nombre": "Tramo 4",
+        "personas": 7
+      },
+      {
+        "nombre": "Calesita de Soldadura",
+        "personas": 8
+      },
+      {
+        "nombre": "Caja Control",
+        "personas": 8
+      },
+      {
+        "nombre": "Calesita de prueba funcional",
+        "personas": 5
+      },
+      {
+        "nombre": "Embalaje",
+        "personas": 5
+      },
+      {
+        "nombre": "Almaceneros de materiales",
+        "personas": 4
+      },
+      {
+        "nombre": "Reparadores de ensamble",
+        "personas": 7
+      },
+      {
+        "nombre": "Reparador de calesita",
+        "personas": 1
+      },
+      {
+        "nombre": "Reparador de paneles",
+        "personas": 1
+      },
+      {
+        "nombre": "Relevos",
+        "personas": 10
+      },
+      {
+        "nombre": "Auxiliares de línea",
+        "personas": 2
+      }
+    ]
+  },
+  "12k_tcl_inv": {
+    "nombre_modelo": "TCL T-PRO INVERTER 12K",
+    "ot": "",
+    "pnb": "PNB045690",
+    "tramos": [
+      {
+        "nombre": "Desembalaje (mockup)",
+        "personas": 14
+      },
+      {
+        "nombre": "Abastecimiento (mockup)",
+        "personas": 3
+      },
+      {
+        "nombre": "Tramo 1",
+        "personas": 12
+      },
+      {
+        "nombre": "Tramo 2",
+        "personas": 17
+      },
+      {
+        "nombre": "Calesita de vacío",
+        "personas": 7
+      },
+      {
+        "nombre": "Cargadoras",
+        "personas": 2
+      },
+      {
+        "nombre": "Selladora",
+        "personas": 1
+      },
+      {
+        "nombre": "Tramo 3",
+        "personas": 13
+      },
+      {
+        "nombre": "Tramo 4",
+        "personas": 5
+      },
+      {
+        "nombre": "Calesita de soldadura",
+        "personas": 8
+      },
+      {
+        "nombre": "Caja control",
+        "personas": 9
+      },
+      {
+        "nombre": "Calesita de prueba funcional",
+        "personas": 5
+      },
+      {
+        "nombre": "Embalaje",
+        "personas": 5
+      },
+      {
+        "nombre": "Almaceneros de materiales",
+        "personas": 5
+      },
+      {
+        "nombre": "Reparadores",
+        "personas": 7
+      },
+      {
+        "nombre": "Reparador y relevo de soldadura",
+        "personas": 1
+      },
+      {
+        "nombre": "Reparador de paneles",
+        "personas": 1
+      },
+      {
+        "nombre": "Relevos",
+        "personas": 11
+      },
+      {
+        "nombre": "Auxiliares de línea",
+        "personas": 2
+      },
+      {
+        "nombre": "Desvíos (Desembalaje)",
+        "personas": 2
+      }
+    ]
+  },
+  "18k_tcl_wifi inv": {
+    "nombre_modelo": "TCL T-PRO 2 18K WIFI INV",
+    "ot": "UC.SPL.F/C BSIC54WCLYS",
+    "pnb": "PNB045808",
+    "tramos": [
+      {
+        "nombre": "Desembalaje (mockup)",
+        "personas": 14
+      },
+      {
+        "nombre": " Abastecimiento (mockup)",
+        "personas": 3
+      },
+      {
+        "nombre": "Tramo 1",
+        "personas": 12
+      },
+      {
+        "nombre": "Tramo 2",
+        "personas": 17
+      },
+      {
+        "nombre": "Calesita de vacío",
+        "personas": 7
+      },
+      {
+        "nombre": "Cargadoras",
+        "personas": 2
+      },
+      {
+        "nombre": "Selladora",
+        "personas": 1
+      },
+      {
+        "nombre": "Tramo 3",
+        "personas": 13
+      },
+      {
+        "nombre": "Tramo 4",
+        "personas": 5
+      },
+      {
+        "nombre": "Calesita de soldadura",
+        "personas": 8
+      },
+      {
+        "nombre": "Caja control",
+        "personas": 9
+      },
+      {
+        "nombre": "Calesita de prueba funcional",
+        "personas": 5
+      },
+      {
+        "nombre": "Embalaje",
+        "personas": 5
+      },
+      {
+        "nombre": "Almaceneros de materiales",
+        "personas": 5
+      },
+      {
+        "nombre": "Reparadores",
+        "personas": 7
+      },
+      {
+        "nombre": "Reparador y relevo de soldadura",
+        "personas": 1
+      },
+      {
+        "nombre": "Reparador de paneles",
+        "personas": 1
+      },
+      {
+        "nombre": "Relevos",
+        "personas": 12
+      },
+      {
+        "nombre": "Auxiliares de línea",
+        "personas": 2
+      },
+      {
+        "nombre": "Desvíos (Desembalaje)",
+        "personas": 2
+      }
+    ]
+  },
+  "12k_tcl_wifi inv": {
+    "nombre_modelo": "TCL T-PRO 2 12K WIFI INV",
+    "ot": "UC.SPL.F/C BSIC36WCLYS",
+    "pnb": "PNB045806",
+    "tramos": [
+      {
+        "nombre": "Desembalaje (mockup)",
+        "personas": 14
+      },
+      {
+        "nombre": " Abastecimiento (mockup)",
+        "personas": 3
+      },
+      {
+        "nombre": "Tramo 1",
+        "personas": 12
+      },
+      {
+        "nombre": "Tramo 2",
+        "personas": 18
+      },
+      {
+        "nombre": "Calesita de vacío",
+        "personas": 7
+      },
+      {
+        "nombre": "Cargadoras",
+        "personas": 2
+      },
+      {
+        "nombre": "Selladora",
+        "personas": 1
+      },
+      {
+        "nombre": "Tramo 3",
+        "personas": 13
+      },
+      {
+        "nombre": "Tramo 4",
+        "personas": 5
+      },
+      {
+        "nombre": "Calesita de soldadura",
+        "personas": 8
+      },
+      {
+        "nombre": "Caja control",
+        "personas": 9
+      },
+      {
+        "nombre": "Calesita de prueba funcional",
+        "personas": 5
+      },
+      {
+        "nombre": "Embalaje",
+        "personas": 5
+      },
+      {
+        "nombre": "Almaceneros de materiales",
+        "personas": 5
+      },
+      {
+        "nombre": "Reparadores",
+        "personas": 7
+      },
+      {
+        "nombre": "Reparador y relevo de soldadura",
+        "personas": 1
+      },
+      {
+        "nombre": "Reparador de paneles",
+        "personas": 1
+      },
+      {
+        "nombre": "Relevos",
+        "personas": 12
+      },
+      {
+        "nombre": "Auxiliares de línea",
+        "personas": 2
+      },
+      {
+        "nombre": "Desvíos (Desembalaje)",
+        "personas": 2
+      }
+    ]
+  }
+}

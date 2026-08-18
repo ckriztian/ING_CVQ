@@ -1,0 +1,26 @@
+{
+  "12k_midea_inv": {
+    "nombre": "Layout 12K Midea INV",
+    "url": "https://grupobgh.sharepoint.com/:b:/s/RGA-Ingenieria/IQDa34vVFtqtS6bEDQxRWwjtAVCYxkOrEF500DDo4aeC0Z8?e=EKdf9X",
+    "descripcion": "Layout cargado en SharePoint para consulta externa.",
+    "estado": "Actual",
+    "version": "v3",
+    "fecha": "2026-12-05"
+  },
+  "12k_midea_on-off": {
+    "nombre": "Layout 12K Midea AG-OFF",
+    "url": "https://grupobgh.sharepoint.com/:b:/s/RGA-Ingenieria/IQBTGeofvkpQRLHR7QqPEF7GAZrgsUcA_jpk8mp86kA0OE8?e=CUuuqF",
+    "descripcion": "Layout vigente cargado en nube compartida.",
+    "estado": "Actual",
+    "version": "v1",
+    "fecha": "2026-05-05"
+  },
+  "18k_midea_inv": {
+    "nombre": "Layout Midea KD2.0 18K INV",
+    "url": "https://grupobgh.sharepoint.com/:b:/s/RGA-Ingenieria/IQBx7Mqa4fmeRIjr1JIMq-vMAZ04xJK_58MfdF0tOdZ77xw?e=kE3sfz",
+    "descripcion": "Layout vigente cargado en nube compartida",
+    "estado": "Actual",
+    "version": "v2",
+    "fecha": "2026-14-05"
+  }
+}

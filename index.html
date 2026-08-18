@@ -1,0 +1,2063 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BGH · Sistema Experto v0.1</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* ── Tokens ─────────────────────────────── */
+    :root {
+      --bg:        #F4F6FA;
+      --surface:   #FFFFFF;
+      --surface2:  #F0F3F9;
+      --border:    #E2E8F3;
+      --border2:   #C8D3E8;
+      --text:      #1A2035;
+      --muted:     #6B7A99;
+      --hint:      #9BAAC4;
+      --accent:    #2563EB;
+      --accent-lt: #EEF3FD;
+      --accent-dk: #1D4ED8;
+      --ok:        #16A34A;
+      --ok-lt:     #DCFCE7;
+      --warn:      #D97706;
+      --warn-lt:   #FEF3C7;
+      --err:       #DC2626;
+      --err-lt:    #FEE2E2;
+      --navy:      #0F1F45;
+      --r:         10px;
+      --r-lg:      14px;
+      --shadow:    0 1px 3px rgba(15,31,69,.07), 0 4px 12px rgba(15,31,69,.05);
+      --shadow-md: 0 2px 6px rgba(15,31,69,.09), 0 8px 24px rgba(15,31,69,.07);
+    }
+
+    /* ── Reset ───────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'DM Sans', system-ui, sans-serif;
+      font-size: 14px;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    a { color: var(--accent); }
+    code, .mono { font-family: 'DM Mono', monospace; font-size: 12px; }
+
+    /* ── Layout ──────────────────────────────── */
+    .app-shell { display: flex; min-height: 100vh; }
+
+    /* Sidebar */
+    .sidebar {
+      width: 220px;
+      flex-shrink: 0;
+      background: var(--navy);
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+    }
+    .sidebar-brand {
+      padding: 22px 20px 18px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    .brand-badge {
+      width: 36px; height: 36px;
+      background: var(--accent);
+      border-radius: 9px;
+      display: grid; place-items: center;
+      margin-bottom: 10px;
+    }
+    .brand-badge svg { width: 20px; height: 20px; }
+    .brand-name { font-size: 15px; font-weight: 600; color: #fff; letter-spacing: -.2px; }
+    .brand-sub  { font-size: 11px; color: rgba(255,255,255,.45); margin-top: 2px; }
+
+    .sidebar-nav { flex: 1; padding: 12px 10px; display: flex; flex-direction: column; gap: 2px; }
+    .nav-group-label {
+      font-size: 10px; font-weight: 600; letter-spacing: .08em;
+      color: rgba(255,255,255,.3); text-transform: uppercase;
+      padding: 12px 10px 6px;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 12px; border-radius: 8px;
+      cursor: pointer; color: rgba(255,255,255,.55);
+      font-size: 13.5px; font-weight: 400;
+      transition: background .15s, color .15s;
+      border: none; background: none; width: 100%; text-align: left;
+      font-family: 'DM Sans', system-ui, sans-serif;
+    }
+    .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+    .nav-item:hover { background: rgba(255,255,255,.07); color: #fff; }
+    .nav-item.active { background: var(--accent); color: #fff; font-weight: 500; }
+
+    .sidebar-footer {
+      padding: 14px 20px;
+      border-top: 1px solid rgba(255,255,255,.08);
+      font-size: 11px;
+      color: rgba(255,255,255,.3);
+    }
+
+    /* Main content */
+    .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+    /* Top bar */
+    .topbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 28px;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      position: sticky; top: 0; z-index: 10;
+    }
+    .topbar-title { font-size: 16px; font-weight: 600; color: var(--text); }
+    .topbar-right { display: flex; align-items: center; gap: 10px; }
+    .api-input-wrap { display: flex; align-items: center; gap: 6px; }
+    .api-label { font-size: 12px; color: var(--muted); white-space: nowrap; }
+    .api-input {
+      padding: 6px 10px; font-size: 12px; font-family: 'DM Mono', monospace;
+      border: 1px solid var(--border2); border-radius: 7px;
+      background: var(--surface2); color: var(--text); outline: none; width: 200px;
+    }
+    .api-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+
+    /* Page */
+    .page { display: none; padding: 28px; max-width: 1100px; }
+    .page.active { display: block; }
+
+    /* Section headers */
+    .page-title { font-size: 22px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    .page-sub   { font-size: 13px; color: var(--muted); margin-bottom: 24px; }
+
+    /* Cards */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-lg);
+      padding: 20px 22px;
+      box-shadow: var(--shadow);
+    }
+    .card + .card { margin-top: 14px; }
+    .card-title {
+      font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 14px; display: flex; align-items: center; gap: 7px;
+    }
+    .card-title svg { width: 14px; height: 14px; }
+
+    /* Grid utilities */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .grid-auto { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+    .g-span2 { grid-column: span 2; }
+
+    /* Form */
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field label { font-size: 12px; font-weight: 500; color: var(--muted); }
+    select, input[type="number"], input[type="text"], input[type="password"], textarea {
+      padding: 9px 12px; font-size: 13.5px;
+      font-family: 'DM Sans', system-ui, sans-serif;
+      border: 1px solid var(--border2); border-radius: var(--r);
+      background: var(--surface); color: var(--text); outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    select:focus, input:focus, textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+    }
+    textarea { resize: vertical; min-height: 140px; font-size: 12px; font-family: 'DM Mono', monospace; }
+
+    /* Buttons */
+    .btn {
+      padding: 9px 18px; font-size: 13.5px; font-weight: 500;
+      font-family: 'DM Sans', system-ui, sans-serif;
+      border-radius: var(--r); cursor: pointer; border: 1px solid var(--border2);
+      background: var(--surface); color: var(--text);
+      transition: background .15s, border-color .15s, transform .1s;
+      display: inline-flex; align-items: center; gap: 7px;
+      white-space: nowrap;
+    }
+    .btn:hover { background: var(--surface2); }
+    .btn:active { transform: scale(.98); }
+    .btn svg { width: 14px; height: 14px; }
+    .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .btn-primary:hover { background: var(--accent-dk); border-color: var(--accent-dk); }
+    .btn-ok { background: var(--ok); color: #fff; border-color: var(--ok); }
+    .btn-ok:hover { background: #15803d; border-color: #15803d; }
+    .btn-danger { background: var(--err-lt); color: var(--err); border-color: #fca5a5; }
+    .btn-danger:hover { background: #fee2e2; }
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+    .btn-icon { padding: 7px; width: 32px; height: 32px; justify-content: center; }
+
+    /* Metrics */
+    .metric { background: var(--surface2); border-radius: var(--r); padding: 14px 16px; }
+    .metric-label { font-size: 11px; font-weight: 500; color: var(--muted); margin-bottom: 4px; }
+    .metric-value { font-size: 26px; font-weight: 600; color: var(--text); line-height: 1; }
+    .metric-sub   { font-size: 11px; color: var(--hint); margin-top: 3px; }
+    .metric.accent { background: var(--accent-lt); }
+    .metric.accent .metric-value { color: var(--accent); }
+
+    /* Badges */
+    .badge {
+      display: inline-flex; align-items: center; padding: 3px 9px;
+      border-radius: 20px; font-size: 11px; font-weight: 500; gap: 4px;
+    }
+    .badge-blue   { background: var(--accent-lt); color: var(--accent-dk); }
+    .badge-green  { background: var(--ok-lt); color: var(--ok); }
+    .badge-warn   { background: var(--warn-lt); color: var(--warn); }
+    .badge-gray   { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+    .badge-err    { background: var(--err-lt); color: var(--err); }
+
+    /* Alerts */
+    .alert {
+      padding: 10px 14px; border-radius: var(--r); font-size: 13px;
+      display: flex; align-items: flex-start; gap: 9px;
+    }
+    .alert svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; }
+    .alert-ok   { background: var(--ok-lt);   color: var(--ok);   border: 1px solid #86efac; }
+    .alert-warn { background: var(--warn-lt); color: var(--warn); border: 1px solid #fcd34d; }
+    .alert-err  { background: var(--err-lt);  color: var(--err);  border: 1px solid #fca5a5; }
+    .alert-info { background: var(--accent-lt); color: var(--accent-dk); border: 1px solid #93c5fd; }
+
+    /* Divider */
+    hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+
+    /* Status pill */
+    .status-pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 500;
+      border: 1px solid var(--border); color: var(--muted); background: var(--surface2);
+    }
+    .status-pill.ok   { border-color: #86efac; color: var(--ok);   background: var(--ok-lt); }
+    .status-pill.err  { border-color: #fca5a5; color: var(--err);  background: var(--err-lt); }
+    .status-pill.warn { border-color: #fcd34d; color: var(--warn); background: var(--warn-lt); }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+    /* Table */
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase;
+      letter-spacing: .06em; padding: 8px 10px; border-bottom: 1px solid var(--border);
+      text-align: left;
+    }
+    tbody td { padding: 9px 10px; border-bottom: 1px solid var(--border); font-size: 13px; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: var(--surface2); }
+
+    /* KV rows */
+    .kv { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+    .kv-row { display: contents; }
+    .kv-row span { padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .kv-row span:first-child { color: var(--muted); }
+    .kv-row span:last-child { font-weight: 500; }
+    .kv-row:last-child span { border-bottom: none; }
+
+    /* Progress bar */
+    .progress { height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 3px; background: var(--accent); transition: width .3s; }
+
+    /* Tramos editor */
+    .tramo-row {
+      display: grid;
+      grid-template-columns: 30px 1fr 80px 140px 34px;
+      gap: 8px; align-items: center;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .tramo-row:last-child { border-bottom: none; }
+    .tramo-nombre {
+      padding: 6px 10px; font-size: 13px; font-family: 'DM Sans', system-ui, sans-serif;
+      border: 1px solid var(--border); border-radius: 7px;
+      background: var(--surface); color: var(--text); outline: none; width: 100%;
+    }
+    .tramo-nombre:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(37,99,235,.1); }
+    .tramo-cant {
+      width: 72px; padding: 6px 10px; font-size: 14px; font-weight: 600;
+      font-family: 'DM Sans', system-ui, sans-serif;
+      border: 1px solid var(--border); border-radius: 7px;
+      background: var(--surface); color: var(--text); text-align: center; outline: none;
+    }
+    .tramo-cant:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(37,99,235,.1); }
+    .move-btns { display: flex; flex-direction: column; gap: 2px; }
+    .move-btn {
+      width: 22px; height: 15px; display: flex; align-items: center; justify-content: center;
+      border: 1px solid var(--border); border-radius: 4px; cursor: pointer;
+      background: var(--surface2); color: var(--muted); font-size: 9px;
+      transition: background .1s;
+    }
+    .move-btn:hover { background: var(--border); }
+    .color-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+    /* Linea toggle */
+    .linea-toggle { display: flex; gap: 6px; }
+    .linea-btn {
+      padding: 6px 16px; font-size: 12px; font-weight: 500;
+      border: 1px solid var(--border2); border-radius: 20px;
+      cursor: pointer; font-family: 'DM Sans', system-ui, sans-serif;
+      background: var(--surface2); color: var(--muted); transition: all .15s;
+    }
+    .linea-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+    /* Tabs (admin) */
+    .tab-bar { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+    .tab-btn {
+      padding: 9px 18px; font-size: 13px; font-weight: 500; cursor: pointer;
+      border: none; background: none; color: var(--muted); border-bottom: 2px solid transparent;
+      margin-bottom: -1px; font-family: 'DM Sans', system-ui, sans-serif; transition: color .15s;
+    }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* Pallet visual */
+    .pallet-viz { display: flex; flex-direction: column; gap: 4px; }
+    .pallet-row-viz { display: flex; gap: 4px; }
+    .pallet-box-viz {
+      width: 24px; height: 17px; border-radius: 3px;
+      background: var(--accent-lt); border: 1px solid #93c5fd;
+    }
+    .pallet-box-viz.partial { background: var(--warn-lt); border-color: #fcd34d; }
+
+    /* Responsive */
+    @media (max-width: 860px) {
+      .sidebar { display: none; }
+      .grid-4 { grid-template-columns: 1fr 1fr; }
+      .grid-3 { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 580px) {
+      .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    }
+
+    /* Admin grid (spreadsheet) ─────────── */
+    .admin-grid { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .admin-grid thead th {
+      position: sticky; top: 0; z-index: 2;
+      background: var(--surface2);
+      padding: 9px 10px;
+      font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
+      color: var(--muted); text-align: left;
+      border-bottom: 1.5px solid var(--border2);
+      border-right: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .admin-grid thead th:last-child { border-right: none; }
+    .admin-grid tbody tr:nth-child(even) td { background: #FAFBFD; }
+    .admin-grid tbody tr:hover td { background: var(--accent-lt) !important; }
+    .admin-grid td {
+      padding: 0; border-bottom: 1px solid var(--border);
+      border-right: 1px solid var(--border); vertical-align: middle;
+    }
+    .admin-grid td:last-child { border-right: none; width: 44px; }
+    .grid-cell {
+      display: block; width: 100%; padding: 7px 10px;
+      font-size: 12.5px; font-family: 'DM Mono', monospace;
+      border: none; outline: none; background: transparent;
+      color: var(--text); min-width: 60px;
+    }
+    .grid-cell:focus {
+      background: #EEF3FD;
+      box-shadow: inset 0 0 0 2px var(--accent);
+    }
+    .grid-cell.wide { min-width: 130px; }
+    .grid-cell.narrow { min-width: 50px; max-width: 80px; }
+    .grid-del {
+      width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+      border: none; background: none; cursor: pointer; color: var(--hint);
+      border-radius: 6px; margin: 0 4px; transition: background .1s, color .1s;
+    }
+    .grid-del:hover { background: var(--err-lt); color: var(--err); }
+    .grid-row-num {
+      font-size: 11px; color: var(--hint); font-family: 'DM Mono', monospace;
+      padding: 0 10px; text-align: center; user-select: none; min-width: 36px;
+      background: var(--surface2) !important;
+      border-right: 1.5px solid var(--border2) !important;
+    }
+
+    /* Helpers */
+    .flex { display: flex; align-items: center; }
+    .flex-wrap { display: flex; flex-wrap: wrap; }
+    .gap-8  { gap: 8px; }
+    .gap-12 { gap: 12px; }
+    .mt-4  { margin-top: 4px; }
+    .mt-12 { margin-top: 12px; }
+    .mt-16 { margin-top: 16px; }
+    .mt-20 { margin-top: 20px; }
+    .mb-12 { margin-bottom: 12px; }
+    .justify-between { justify-content: space-between; }
+    .text-muted { color: var(--muted); }
+    .text-hint  { color: var(--hint); font-size: 12px; }
+    .fw-600 { font-weight: 600; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- ── Sidebar ─────────────────── -->
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="6.5" cy="12" r="3.5"/>
+          <rect x="10.5" y="6" width="3" height="12" rx="1.2"/>
+          <path d="M18 6h2v6h-4v6h-2V6h4z"/>
+        </svg>
+      </div>
+      <div class="brand-name">BGH — Ing. AA</div>
+      <div class="brand-sub">Sistema Experto v0.1</div>
+    </div>
+    <div class="sidebar-nav">
+      <div class="nav-group-label">Consultas</div>
+      <button class="nav-item active" data-page="pallets" onclick="switchPage('pallets', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="13" rx="2"/><path d="M16 7V5a2 2 0 0 0-4 0v2"/><line x1="12" y1="11" x2="12" y2="15"/><line x1="10" y1="13" x2="14" y2="13"/></svg>
+        Palletización
+      </button>
+      <button class="nav-item" data-page="ficha" onclick="switchPage('ficha', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
+        Ficha del equipo
+      </button>
+      <button class="nav-item" data-page="personal" onclick="switchPage('personal', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Personal de línea
+      </button>
+      <button class="nav-item" data-page="specs" onclick="switchPage('specs', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Especificaciones
+      </button>
+      <button class="nav-item" data-page="layouts" onclick="switchPage('layouts', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 4v16"/><path d="M3 10h18"/><path d="M13 10v10"/></svg>
+        Layouts
+      </button>
+      <button class="nav-item" data-page="tiempos" onclick="switchPage('tiempos', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        Tiempos
+      </button>
+      <div class="nav-group-label">Sistema</div>
+      <button class="nav-item" data-page="admin" onclick="switchPage('admin', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 1 0 21 12"/><path d="M12 12l9-9"/></svg>
+        Admin / CSV
+      </button>
+    </div>
+    <div class="sidebar-footer">Cristian Vera - Ingeniería AA</div>
+  </nav>
+
+  <!-- ── Main ───────────────────── -->
+  <div class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="topbar-title" id="topbar-title">Palletización</div>
+      <div class="topbar-right">
+        <div class="api-input-wrap">
+          <span class="api-label">API URL</span>
+          <input class="api-input" id="baseUrl" value="http://127.0.0.1:8000" />
+        </div>
+        <span id="global-status" class="status-pill"><span class="dot"></span>Desconectado</span>
+      </div>
+    </div>
+
+    <!-- ══ PAGE: Palletización ══ -->
+    <div class="page active" id="page-pallets">
+      <div style="padding: 28px">
+        <div class="page-title">Calcular palletización</div>
+        <div class="page-sub">Consultá la configuración de pallet y calculá la cantidad necesaria.</div>
+
+        <div class="card mb-12">
+          <div class="grid-4 gap-12">
+            <div class="field">
+              <label>Capacidad</label>
+              <select id="p-cap" onchange="onCapChange('p')"></select>
+            </div>
+            <div class="field">
+              <label>Proveedor</label>
+              <select id="p-prov" onchange="onProvChange('p')"></select>
+            </div>
+            <div class="field">
+              <label>Modelo</label>
+              <select id="p-mod"></select>
+            </div>
+            <div class="field">
+              <label>Cantidad de unidades</label>
+              <input type="number" id="p-cant" min="1" placeholder="Ej: 130" />
+            </div>
+          </div>
+          <div class="flex gap-8 mt-16 flex-wrap">
+            <button class="btn btn-primary" onclick="showPallet()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              Ver configuración
+            </button>
+            <button class="btn btn-primary" onclick="calcPallets()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/><line x1="8" y1="18" x2="12" y2="18"/></svg>
+              Calcular pallets
+            </button>
+            <button class="btn" onclick="reloadKB()">Recargar KB</button>
+            <span class="text-hint" style="margin-left:4px">Atajos: <kbd style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:11px">I</kbd> info · <kbd style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:11px">C</kbd> calcular</span>
+          </div>
+        </div>
+
+        <div id="pallet-result"></div>
+      </div>
+    </div>
+
+    <!-- ══ PAGE: Ficha del equipo ══ -->
+    <div class="page" id="page-ficha">
+      <div style="padding: 28px">
+        <div class="page-title">Ficha del equipo</div>
+        <div class="page-sub">Datos técnicos, de producción y embalaje del modelo seleccionado.</div>
+
+        <div class="card mb-12">
+          <div class="grid-3 gap-12">
+            <div class="field">
+              <label>Capacidad</label>
+              <select id="f-cap" onchange="onCapChange('f')"></select>
+            </div>
+            <div class="field">
+              <label>Proveedor</label>
+              <select id="f-prov" onchange="onProvChange('f')"></select>
+            </div>
+            <div class="field">
+              <label>Modelo</label>
+              <select id="f-mod"></select>
+            </div>
+          </div>
+          <div class="mt-16">
+            <button class="btn btn-primary" onclick="showFicha()">Ver ficha completa</button>
+          </div>
+        </div>
+
+        <div id="ficha-result"></div>
+      </div>
+    </div>
+
+    <!-- ══ PAGE: Personal de línea ══ -->
+    <div class="page" id="page-personal">
+      <div style="padding: 28px">
+        <div class="page-title">Personal de línea de producción</div>
+        <div class="page-sub">Definí y editá la dotación requerida por sector para cada modelo.</div>
+
+        <div class="card mb-12">
+          <div class="grid-3 gap-12">
+            <div class="field">
+              <label>Capacidad</label>
+              <select id="per-cap" onchange="onCapChange('per')"></select>
+            </div>
+            <div class="field">
+              <label>Proveedor</label>
+              <select id="per-prov" onchange="onProvChange('per')"></select>
+            </div>
+            <div class="field">
+              <label>Modelo</label>
+              <select id="per-mod"></select>
+            </div>
+          </div>
+          <div class="mt-16">
+            <button class="btn btn-primary" onclick="loadPersonal()">Cargar personal</button>
+          </div>
+        </div>
+
+        <div id="personal-result"></div>
+      </div>
+    </div>
+
+    <!-- ══ PAGE: Especificaciones ══ -->
+    <div class="page" id="page-specs">
+      <div style="padding: 28px">
+        <div class="page-title">Especificaciones técnicas</div>
+        <div class="page-sub">Datos por línea de producción (L01 / L03): BTUs, SEER, dimensiones y más.</div>
+
+        <div class="card mb-12">
+          <div class="grid-4 gap-12">
+            <div class="field">
+              <label>Capacidad</label>
+              <select id="s-cap" onchange="onCapChange('s')"></select>
+            </div>
+            <div class="field">
+              <label>Proveedor</label>
+              <select id="s-prov" onchange="onProvChange('s')"></select>
+            </div>
+            <div class="field">
+              <label>Modelo</label>
+              <select id="s-mod"></select>
+            </div>
+            <div class="field">
+              <label>Línea</label>
+              <select id="s-lin"></select>
+            </div>
+          </div>
+          <div class="mt-16">
+            <button class="btn btn-primary" onclick="showSpecs()">Ver especificaciones</button>
+            <button class="btn" style="margin-left:8px" onclick="reloadSpecs()">Recargar specs</button>
+          </div>
+        </div>
+
+        <div id="specs-result"></div>
+      </div>
+    </div>
+
+    <!-- ══ PAGE: Admin ══ -->
+    <div class="page" id="page-admin">
+      <div style="padding: 28px">
+        <div class="page-title">Administración</div>
+        <div class="page-sub">Edición de CSVs y acceso con API Key. Solo personal autorizado.</div>
+
+        <div class="card mb-12">
+          <div class="card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Autenticación
+          </div>
+          <div class="grid-2 gap-12">
+            <div class="field">
+              <label>API Key de administrador</label>
+              <input type="password" id="adminKey" placeholder="Ingresá tu clave de acceso" />
+            </div>
+            <div class="flex gap-8" style="align-items: flex-end">
+              <button class="btn btn-primary" onclick="adminLogin()">Ingresar</button>
+              <button class="btn btn-danger" onclick="adminLogout()">Cerrar sesión</button>
+              <span id="admin-status" class="status-pill"><span class="dot"></span>Desconectado</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="admin-panel" class="hidden">
+          <div class="tab-bar">
+            <button class="tab-btn active" id="tab-pallet-csv" onclick="switchAdminTab('pallet')">Palletización</button>
+            <button class="tab-btn" id="tab-specs-csv" onclick="switchAdminTab('specs')">Especificaciones</button>
+          </div>
+
+          <!-- ── Palletización ── -->
+          <div id="admin-panel-pallet">
+            <div class="card" style="padding:0;overflow:hidden">
+              <div class="flex justify-between flex-wrap gap-8" style="padding:16px 20px;border-bottom:1px solid var(--border)">
+                <div>
+                  <div class="fw-600" style="font-size:14px">palletizacion.csv</div>
+                  <div class="text-hint mt-4">Editá las celdas directamente. Los cambios se guardan al presionar "Guardar en servidor".</div>
+                </div>
+                <div class="flex gap-8 flex-wrap">
+                  <button class="btn btn-primary btn-sm" onclick="loadCsvGrid()">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.18-4.5"/></svg>
+                    Cargar del servidor
+                  </button>
+                  <button class="btn btn-ok btn-sm" onclick="saveCsvGrid()">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                    Guardar en servidor
+                  </button>
+                  <button class="btn btn-sm" onclick="addPalletRow()">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Nueva fila
+                  </button>
+                  <button class="btn btn-sm" onclick="document.getElementById('fileCsvGrid').click()">Importar .csv</button>
+                  <button class="btn btn-sm" onclick="exportCsvGrid('palletizacion.csv','pallet')">Exportar .csv</button>
+                  <input type="file" id="fileCsvGrid" accept=".csv" class="hidden" onchange="importCsvGrid('fileCsvGrid','pallet')" />
+                </div>
+              </div>
+              <div style="overflow-x:auto;overflow-y:auto;max-height:520px">
+                <table id="grid-pallet" class="admin-grid">
+                  <thead></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+              <div id="pallet-grid-empty" style="padding:40px;text-align:center;color:var(--muted);font-size:13px">
+                Presioná "Cargar del servidor" para ver y editar los datos.
+              </div>
+            </div>
+          </div>
+
+          <!-- ── Especificaciones ── -->
+          <div id="admin-panel-specs" class="hidden">
+            <div class="card" style="padding:0;overflow:hidden">
+              <div class="flex justify-between flex-wrap gap-8" style="padding:16px 20px;border-bottom:1px solid var(--border)">
+                <div>
+                  <div class="fw-600" style="font-size:14px">especificaciones.csv</div>
+                  <div class="text-hint mt-4">Editá las celdas directamente. Los cambios se guardan al presionar "Guardar en servidor".</div>
+                </div>
+                <div class="flex gap-8 flex-wrap">
+                  <button class="btn btn-primary btn-sm" onclick="loadSpecsGrid()">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.18-4.5"/></svg>
+                    Cargar del servidor
+                  </button>
+                  <button class="btn btn-ok btn-sm" onclick="saveSpecsGrid()">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                    Guardar en servidor
+                  </button>
+                  <button class="btn btn-sm" onclick="addSpecsRow()">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Nueva fila
+                  </button>
+                  <button class="btn btn-sm" onclick="document.getElementById('fileSpecsGrid').click()">Importar .csv</button>
+                  <button class="btn btn-sm" onclick="exportCsvGrid('especificaciones.csv','specs')">Exportar .csv</button>
+                  <input type="file" id="fileSpecsGrid" accept=".csv" class="hidden" onchange="importCsvGrid('fileSpecsGrid','specs')" />
+                </div>
+              </div>
+              <div style="overflow-x:auto;overflow-y:auto;max-height:520px">
+                <table id="grid-specs" class="admin-grid">
+                  <thead></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+              <div id="specs-grid-empty" style="padding:40px;text-align:center;color:var(--muted);font-size:13px">
+                Presioná "Cargar del servidor" para ver y editar los datos.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ PAGE: Layouts ══ -->
+    <div class="page" id="page-layouts">
+      <div style="padding:28px">
+        <div class="page-title">Layouts por modelo</div>
+        <div class="page-sub">Seleccioná el modelo para abrir el layout cargado en la nube compartida.</div>
+
+        <div class="card mb-12">
+          <div class="grid-3 gap-12">
+            <div class="field">
+              <label>Capacidad</label>
+              <select id="l-cap" onchange="onCapChange('l')"></select>
+            </div>
+            <div class="field">
+              <label>Proveedor</label>
+              <select id="l-prov" onchange="onProvChange('l')"></select>
+            </div>
+            <div class="field">
+              <label>Modelo</label>
+              <select id="l-mod"></select>
+            </div>
+          </div>
+          <div class="mt-16 flex gap-8 flex-wrap">
+            <button class="btn btn-primary" onclick="showLayout()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3h7v7"/><path d="M10 14 21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>
+              Ver / editar layout
+            </button>
+            <button class="btn" onclick="renderLayoutEditorEmpty()">Agregar link</button>
+            <button class="btn" onclick="reloadLayouts()">Recargar layouts</button>
+          </div>
+        </div>
+
+        <div id="layout-result"></div>
+      </div>
+    </div>
+
+    <!-- ══ PAGE: Tiempos por puesto ══ -->
+    <div class="page" id="page-tiempos">
+      <div style="padding:28px">
+        <div class="page-title">Tiempos por puesto</div>
+        <div class="page-sub">Cargá los segundos por puesto y visualizá el balance del tramo con límite de ciclo.</div>
+
+        <div class="card mb-12">
+          <div class="grid-4 gap-12">
+            <div class="field">
+              <label>Capacidad</label>
+              <select id="t-cap" onchange="onCapChange('t')"></select>
+            </div>
+            <div class="field">
+              <label>Proveedor</label>
+              <select id="t-prov" onchange="onProvChange('t')"></select>
+            </div>
+            <div class="field">
+              <label>Modelo</label>
+              <select id="t-mod"></select>
+            </div>
+            <div class="field">
+              <label>Límite segundos</label>
+              <input type="number" id="t-limite" value="18" min="1" step="0.1" />
+            </div>
+          </div>
+
+          <div class="grid-2 gap-12 mt-16">
+            <div class="field">
+              <label>Nombre del tramo / gráfico</label>
+              <input type="text" id="t-titulo" value="Distribución de tiempos por puesto" />
+            </div>
+            <div class="field">
+              <label>Tiempos separados por coma</label>
+              <input type="text" id="t-tiempos" placeholder="Ej: 17.9, 17.05, 13.66, 18.2" />
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Cantidad de ciclos medidos</label>
+            <input type="number" id="t-ciclos" value="3" min="1" max="20">
+          </div>
+
+          <button class="btn" onclick="generarTablaCiclos()">
+            Generar tabla de carga
+          </button>
+
+          <div class="mt-16 flex gap-8 flex-wrap">
+            <button class="btn btn-primary" onclick="generarGraficoTiempos()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+              Generar gráfico
+            </button>
+            <button class="btn btn-ok" onclick="saveTiempos()">Guardar tiempos</button>
+            <button class="btn" onclick="loadTiempos()">Cargar guardados</button>
+            <button class="btn btn-danger" onclick="deleteTiempos()">Eliminar tiempos</button>
+            <button class="btn" onclick="reloadTiempos()">Recargar tiempos</button>
+          </div>
+        </div>
+
+        <div id="tiempos-alert"></div>
+
+        <div class="grid-4 gap-8" style="margin-bottom:14px" id="tiempos-metrics"></div>
+
+        <div class="card">
+          <div class="card-title">Gráfico de balance</div>
+          <canvas id="grafico-tiempos" height="120"></canvas>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /app-shell -->
+
+<!-- Chart.js para gráficos de tiempos -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- ══════════ SCRIPTS ══════════ -->
+<script>
+/* ── Navigation ────────────────────────── */
+const PAGE_TITLES = {
+  pallets: 'Palletización',
+  ficha: 'Ficha del equipo',
+  personal: 'Personal de línea',
+  specs: 'Especificaciones técnicas',
+  layouts: 'Layouts por modelo',
+  tiempos: 'Tiempos por puesto',
+  admin: 'Administración',
+};
+function switchPage(id, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  btn.classList.add('active');
+  document.getElementById('topbar-title').textContent = PAGE_TITLES[id] || id;
+}
+
+/* ── API helper ─────────────────────────── */
+function base() { return document.getElementById('baseUrl').value.replace(/\/$/, ''); }
+
+async function api(path, opts = {}) {
+  const r = await fetch(base() + path, opts);
+  if (!r.ok) throw new Error(`${r.status} — ${await r.text()}`);
+  const ct = r.headers.get('content-type') || '';
+  return ct.includes('json') ? r.json() : r.text();
+}
+
+function setGlobalStatus(text, kind = '') {
+  const el = document.getElementById('global-status');
+  el.className = 'status-pill' + (kind ? ' ' + kind : '');
+  el.innerHTML = `<span class="dot"></span>${text}`;
+}
+
+/* ── Catalogue helpers ─────────────────── */
+let CATALOGUE = [];
+let LINEAS    = ['L01', 'L03'];
+
+async function loadCatalogo() {
+  try {
+    CATALOGUE = await api('/catalogo');
+    setGlobalStatus('Conectado', 'ok');
+    populateCaps();
+  } catch(e) {
+    setGlobalStatus('Sin conexión', 'err');
+  }
+}
+
+async function loadLineas() {
+  try {
+    LINEAS = await api('/lineas');
+    const sel = document.getElementById('s-lin');
+    sel.innerHTML = LINEAS.map(l => `<option>${l}</option>`).join('');
+  } catch(_) {}
+}
+
+const PREFIXES = ['p', 'f', 'per', 's', 'l', 't'];
+
+function populateCaps() {
+  const caps = [...new Set(CATALOGUE.map(i => i.capacidad))].sort();
+  PREFIXES.forEach(pfx => {
+    const sel = document.getElementById(pfx + '-cap');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">— Capacidad —</option>' + caps.map(c => `<option>${c}</option>`).join('');
+  });
+}
+
+function onCapChange(pfx) {
+  const cap = document.getElementById(pfx + '-cap').value;
+  const provSel = document.getElementById(pfx + '-prov');
+  const provs = [...new Set(CATALOGUE.filter(i => i.capacidad === cap).map(i => i.proveedor))].sort();
+  provSel.innerHTML = '<option value="">— Proveedor —</option>' + provs.map(p => `<option>${p}</option>`).join('');
+  document.getElementById(pfx + '-mod').innerHTML = '<option value="">— Modelo —</option>';
+}
+
+function onProvChange(pfx) {
+  const cap  = document.getElementById(pfx + '-cap').value;
+  const prov = document.getElementById(pfx + '-prov').value;
+  const mods = [...new Set(CATALOGUE.filter(i => i.capacidad === cap && i.proveedor === prov).map(i => i.modelo))].sort();
+  const modSel = document.getElementById(pfx + '-mod');
+  modSel.innerHTML = '<option value="">— Modelo —</option>' + mods.map(m => `<option>${m}</option>`).join('');
+  if (mods.length === 1) modSel.value = mods[0];
+}
+
+function getSel(pfx) {
+  return {
+    cap:  document.getElementById(pfx + '-cap').value,
+    prov: document.getElementById(pfx + '-prov').value,
+    mod:  document.getElementById(pfx + '-mod').value,
+  };
+}
+
+function syncLayoutSelectionFromFicha(cap, prov, mod) {
+  const capSel = document.getElementById('l-cap');
+  if (!capSel) return;
+  capSel.value = cap;
+  onCapChange('l');
+  document.getElementById('l-prov').value = prov;
+  onProvChange('l');
+  document.getElementById('l-mod').value = mod;
+  showLayout();
+}
+
+/* ── Pallet viz ───────────────────────── */
+function palletViz(capas, cxc) {
+  let html = '<div class="pallet-viz">';
+  for (let c = 0; c < Math.min(capas, 4); c++) {
+    html += '<div class="pallet-row-viz">' + '<div class="pallet-box-viz"></div>'.repeat(Math.min(cxc, 10)) + '</div>';
+  }
+  if (capas > 4) html += `<div class="text-hint" style="margin-top:3px">+${capas - 4} capas más</div>`;
+  html += '</div>';
+  return html;
+}
+
+/* ── Page: Palletización ──────────────── */
+async function showPallet() {
+  const { cap, prov, mod } = getSel('p');
+  const el = document.getElementById('pallet-result');
+  if (!cap || !prov || !mod) { el.innerHTML = alert_html('warn', 'Seleccioná capacidad, proveedor y modelo.'); return; }
+  try {
+    const d = await api(`/pallets?capacidad=${cap}&proveedor=${prov}&modelo=${mod}`);
+    el.innerHTML = renderPalletInfo(d, cap, prov, mod);
+  } catch(e) { el.innerHTML = alert_html('err', e.message); }
+}
+
+async function calcPallets() {
+  const { cap, prov, mod } = getSel('p');
+  const cant = parseInt(document.getElementById('p-cant').value);
+  const el = document.getElementById('pallet-result');
+  if (!cap || !prov || !mod) { el.innerHTML = alert_html('warn', 'Seleccioná capacidad, proveedor y modelo.'); return; }
+  if (!cant || cant < 1)     { el.innerHTML = alert_html('warn', 'Ingresá una cantidad válida.'); return; }
+  try {
+    const [info, calc] = await Promise.all([
+      api(`/pallets?capacidad=${cap}&proveedor=${prov}&modelo=${mod}`),
+      api('/calcular-pallets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ capacidad: cap, proveedor: prov, modelo: mod, cantidad: cant }),
+      }),
+    ]);
+    el.innerHTML = renderCalcResult(info, calc);
+  } catch(e) { el.innerHTML = alert_html('err', e.message); }
+}
+
+function renderPalletInfo(d, cap, prov, mod) {
+  return `
+  <div class="card">
+    <div class="flex justify-between mb-12 flex-wrap gap-8">
+      <div>
+        <div class="fw-600" style="font-size:15px">${cap.toUpperCase()} · ${prov.toUpperCase()} · ${mod.toUpperCase()}</div>
+        <div class="text-hint mt-4">SKU: <code>${d.sku}</code></div>
+      </div>
+      <div class="flex gap-8 flex-wrap">
+        <span class="badge badge-blue">${cap.toUpperCase()}</span>
+        <span class="badge badge-gray">${d.orientacion}</span>
+        <span class="badge badge-gray">${d.embalaje}</span>
+      </div>
+    </div>
+    <div class="grid-2 gap-12">
+      <div>
+        <div class="card-title">Configuración de pallet</div>
+        <div class="kv">
+          <div class="kv-row"><span>Unidades por pallet</span><span>${d.unidades_por_pallet}</span></div>
+          <div class="kv-row"><span>Capas</span><span>${d.capas}</span></div>
+          <div class="kv-row"><span>Cajas por capa</span><span>${d.cajas_por_capa}</span></div>
+          <div class="kv-row"><span>Dimensiones (L×A×H)</span><span>${d.dim_pallet_mm[0]}×${d.dim_pallet_mm[1]}×${d.dim_pallet_mm[2]} mm</span></div>
+          <div class="kv-row"><span>Peso unitario</span><span>${d.peso_unitario_kg} kg</span></div>
+          <div class="kv-row"><span>Peso máx. pallet</span><span>${d.peso_max_pallet_kg} kg</span></div>
+          <div class="kv-row"><span>Apilable hasta</span><span>${d.apilable_hasta} pallet${d.apilable_hasta !== 1 ? 's' : ''}</span></div>
+        </div>
+        ${d.notas && d.notas !== 'nan' ? `<div style="margin-top:12px;padding:9px 12px;border-left:2px solid var(--accent-lt);background:var(--accent-lt);border-radius:0 var(--r) var(--r) 0;font-size:12px;color:var(--accent-dk)">${d.notas}</div>` : ''}
+      </div>
+      <div>
+        <div class="card-title">Vista de capas</div>
+        ${palletViz(d.capas, d.cajas_por_capa)}
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderCalcResult(info, c) {
+  const pct = c.resto > 0 ? Math.round((c.resto / c.unidades_por_pallet) * 100) : 100;
+  const pesoPallet = (info.peso_unitario_kg || 0) * c.unidades_por_pallet;
+  let alertas = '';
+  if (c.alerta_altura) alertas += alert_html('warn', `Altura estimada apilada supera el umbral de depósito (1.850 mm).`);
+  if (c.alerta_peso)   alertas += alert_html('warn', `Peso estimado por pallet (${pesoPallet} kg) excede el límite de ${info.peso_max_pallet_kg} kg.`);
+  if (!c.alerta_altura && !c.alerta_peso) alertas = alert_html('ok', 'Sin alertas de altura ni peso para esta configuración.');
+
+  return `
+  <div class="grid-auto gap-8 mb-12" style="margin-bottom:14px">
+    <div class="metric accent"><div class="metric-label">Pallets totales</div><div class="metric-value">${c.pallets_totales}</div><div class="metric-sub">${c.cantidad} unidades</div></div>
+    <div class="metric"><div class="metric-label">Pallets completos</div><div class="metric-value">${c.pallets_completos}</div><div class="metric-sub">${c.unidades_por_pallet} u/pallet</div></div>
+    <div class="metric"><div class="metric-label">Resto</div><div class="metric-value">${c.resto}</div><div class="metric-sub">${c.resto > 0 ? 'pallet incompleto' : 'sin resto'}</div></div>
+    <div class="metric"><div class="metric-label">Peso est./pallet</div><div class="metric-value">${Math.round(pesoPallet)}</div><div class="metric-sub">kg · máx ${info.peso_max_pallet_kg} kg</div></div>
+  </div>
+  <div style="margin-bottom:14px">${alertas}</div>
+  <div class="card">
+    <div class="grid-2 gap-12">
+      <div>
+        <div class="card-title">Desglose de pallet</div>
+        <div class="kv">
+          <div class="kv-row"><span>Capas</span><span>${info.capas}</span></div>
+          <div class="kv-row"><span>Cajas por capa</span><span>${info.cajas_por_capa}</span></div>
+          <div class="kv-row"><span>Dimensiones</span><span>${info.dim_pallet_mm[0]}×${info.dim_pallet_mm[1]}×${info.dim_pallet_mm[2]} mm</span></div>
+          <div class="kv-row"><span>Orientación</span><span>${info.orientacion}</span></div>
+          <div class="kv-row"><span>Embalaje</span><span>${info.embalaje}</span></div>
+          <div class="kv-row"><span>SKU</span><span><code>${info.sku}</code></span></div>
+        </div>
+      </div>
+      <div>
+        <div class="card-title">Vista del pallet</div>
+        ${palletViz(info.capas, info.cajas_por_capa)}
+        ${c.resto > 0 ? `
+        <div style="margin-top:12px">
+          <div class="text-hint mb-4">Pallet parcial: ${c.resto} de ${c.unidades_por_pallet} (${pct}%)</div>
+          <div class="progress"><div class="progress-fill" style="width:${pct}%"></div></div>
+        </div>` : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
+async function reloadKB() {
+  try {
+    await api('/reload', { method: 'POST' });
+    setGlobalStatus('KB recargada', 'ok');
+    setTimeout(() => setGlobalStatus('Conectado', 'ok'), 2000);
+  } catch(e) { setGlobalStatus('Error reload', 'err'); }
+}
+
+/* ── Page: Ficha ──────────────────────── */
+async function showFicha() {
+  const { cap, prov, mod } = getSel('f');
+  const el = document.getElementById('ficha-result');
+  if (!cap || !prov || !mod) { el.innerHTML = alert_html('warn', 'Seleccioná los tres campos.'); return; }
+  try {
+    const [info, personal, layout] = await Promise.all([
+      api(`/pallets?capacidad=${cap}&proveedor=${prov}&modelo=${mod}`),
+      api(`/personal?capacidad=${cap}&proveedor=${prov}&modelo=${mod}`).catch(() => null),
+      api(`/layouts?capacidad=${encodeURIComponent(cap)}&proveedor=${encodeURIComponent(prov)}&modelo=${encodeURIComponent(mod)}`).catch(() => null),
+    ]);
+    el.innerHTML = renderFicha(info, personal, cap, prov, mod, layout);
+  } catch(e) { el.innerHTML = alert_html('err', e.message); }
+}
+
+function renderFicha(info, per, cap, prov, mod, layout = null) {
+  const nombre = per?.nombre_modelo || `${cap.toUpperCase()} · ${prov.toUpperCase()} · ${mod.toUpperCase()}`;
+  const total = per?.tramos ? per.tramos.reduce((s, t) => s + (t.personas || 0), 0) : 0;
+  const layoutUrl = layout?.url || '';
+  const layoutNombre = layout?.nombre || 'Layout del modelo';
+  const layoutEstado = layout?.estado || 'Link disponible';
+  const layoutVersion = layout?.version || '';
+  const layoutFecha = layout?.fecha || '';
+  const layoutCard = layoutUrl ? `
+    <div class="alert alert-info mb-12">
+      <span>Este modelo tiene layout cargado. SharePoint debe abrirse en una nueva pestaña.</span>
+    </div>
+    <div class="flex gap-8 flex-wrap mb-12">
+      <a class="btn btn-primary" href="${htmlEscape(layoutUrl)}" target="_blank" rel="noopener noreferrer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3h7v7"/><path d="M10 14 21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>
+        Abrir layout
+      </a>
+      <button class="btn" onclick="navigator.clipboard.writeText('${htmlEscape(layoutUrl)}').then(() => setGlobalStatus('Link copiado', 'ok')).catch(() => setGlobalStatus('No se pudo copiar', 'warn'))">Copiar link</button>
+    </div>
+    <div class="kv">
+      <div class="kv-row"><span>Nombre</span><span>${htmlEscape(layoutNombre)}</span></div>
+      <div class="kv-row"><span>Estado</span><span>${htmlEscape(layoutEstado)}</span></div>
+      ${layoutVersion ? `<div class="kv-row"><span>Versión</span><span>${htmlEscape(layoutVersion)}</span></div>` : ''}
+      ${layoutFecha ? `<div class="kv-row"><span>Actualización</span><span>${htmlEscape(layoutFecha)}</span></div>` : ''}
+    </div>
+  ` : `
+    <div class="alert alert-warn mb-12">
+      <span>Este modelo todavía no tiene layout cargado.</span>
+    </div>
+    <button class="btn" onclick="switchPage('layouts', document.querySelector('[data-page=layouts]')); syncLayoutSelectionFromFicha('${htmlEscape(cap)}','${htmlEscape(prov)}','${htmlEscape(mod)}')">
+      Cargar layout para este modelo
+    </button>
+  `;
+
+  let tramosHtml = '';
+  if (per?.tramos?.length) {
+    const COLORS = ['#2563EB','#16A34A','#D97706','#DC2626','#7C3AED','#0891B2','#DB2777','#65A30D'];
+    tramosHtml = per.tramos.map((t, i) => {
+      const pct = total > 0 ? Math.round((t.personas / total) * 100) : 0;
+      const col = COLORS[i % COLORS.length];
+      return `
+      <div style="display:grid;grid-template-columns:12px 1fr 50px 100px;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+        <span style="width:10px;height:10px;border-radius:50%;background:${col};display:inline-block"></span>
+        <span style="font-size:13px">${t.nombre}</span>
+        <span style="font-size:14px;font-weight:600;text-align:center">${t.personas}</span>
+        <div>
+          <div class="progress"><div class="progress-fill" style="width:${pct}%;background:${col}"></div></div>
+          <div class="text-hint" style="margin-top:2px;font-size:10px">${pct}%</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  return `
+  <div class="card" style="border-left:3px solid var(--accent)">
+    <div class="flex justify-between mb-12 flex-wrap gap-8">
+      <div>
+        <div class="fw-600" style="font-size:16px">${nombre}</div>
+        <div class="text-hint mt-4">SKU: <code>${info.sku}</code></div>
+      </div>
+      <div class="flex gap-8 flex-wrap">
+        ${per?.ot  ? `<span class="badge badge-blue">${per.ot}</span>` : ''}
+        ${per?.pnb ? `<span class="badge badge-green">${per.pnb}</span>` : ''}
+        <span class="badge badge-gray">${cap.toUpperCase()}</span>
+      </div>
+    </div>
+    <hr>
+    <div class="card" style="background:var(--surface2);box-shadow:none;margin-top:14px">
+      <div class="card-title">Layout asociado</div>
+      ${layoutCard}
+    </div>
+    <div class="grid-2 gap-12 mt-16">
+      <div>
+        <div class="card-title">Palletización</div>
+        <div class="kv">
+          <div class="kv-row"><span>Unid. por pallet</span><span>${info.unidades_por_pallet}</span></div>
+          <div class="kv-row"><span>Capas / caja capa</span><span>${info.capas} / ${info.cajas_por_capa}</span></div>
+          <div class="kv-row"><span>Dimensiones</span><span>${info.dim_pallet_mm[0]}×${info.dim_pallet_mm[1]}×${info.dim_pallet_mm[2]} mm</span></div>
+          <div class="kv-row"><span>Peso unitario</span><span>${info.peso_unitario_kg} kg</span></div>
+          <div class="kv-row"><span>Peso máx.</span><span>${info.peso_max_pallet_kg} kg</span></div>
+          <div class="kv-row"><span>Apilable hasta</span><span>${info.apilable_hasta} pallet${info.apilable_hasta !== 1 ? 's' : ''}</span></div>
+          <div class="kv-row"><span>Orientación</span><span>${info.orientacion}</span></div>
+          <div class="kv-row"><span>Embalaje</span><span>${info.embalaje}</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="card-title">Personal de línea · <strong style="color:var(--text)">${total} personas en total</strong></div>
+        ${tramosHtml || `<div class="text-muted" style="font-size:13px">Sin datos de personal. Configuralos en la sección "Personal de línea".</div>`}
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ── Page: Personal ───────────────────── */
+let PERSONAL_DATA = [];  // tramos actuales editando
+let PERSONAL_META = { nombre_modelo: '', ot: '', pnb: '' };
+let PERSONAL_KEY  = null;
+
+const TRAMO_COLORS = ['#2563EB','#16A34A','#D97706','#DC2626','#7C3AED','#0891B2','#DB2777','#65A30D','#92400E','#1D4ED8'];
+
+async function loadPersonal() {
+  const { cap, prov, mod } = getSel('per');
+  if (!cap || !prov || !mod) {
+    document.getElementById('personal-result').innerHTML = alert_html('warn', 'Seleccioná los tres campos.');
+    return;
+  }
+  PERSONAL_KEY = { cap, prov, mod };
+  try {
+    const d = await api(`/personal?capacidad=${cap}&proveedor=${prov}&modelo=${mod}`);
+    PERSONAL_DATA = d.tramos.map(t => ({ ...t }));
+    PERSONAL_META = { nombre_modelo: d.nombre_modelo || '', ot: d.ot || '', pnb: d.pnb || '' };
+    renderPersonal();
+  } catch(e) {
+    document.getElementById('personal-result').innerHTML = alert_html('err', e.message);
+  }
+}
+
+function renderPersonal() {
+  if (!PERSONAL_KEY) return;
+  const { cap, prov, mod } = PERSONAL_KEY;
+  const total = PERSONAL_DATA.reduce((s, t) => s + Math.max(0, parseInt(t.personas) || 0), 0);
+  const mayorIdx = PERSONAL_DATA.reduce((mi, t, i) => t.personas >= PERSONAL_DATA[mi].personas ? i : mi, 0);
+
+  const metaHtml = `
+  <div class="card mb-12">
+    <div class="card-title">Datos del modelo</div>
+    <div class="grid-3 gap-12">
+      <div class="field">
+        <label>Nombre del modelo</label>
+        <input type="text" id="meta-nombre" value="${PERSONAL_META.nombre_modelo}" placeholder="Ej: Midea Inverter 12.000 BTU" oninput="PERSONAL_META.nombre_modelo=this.value" />
+      </div>
+      <div class="field">
+        <label>Orden de trabajo (OT)</label>
+        <input type="text" id="meta-ot" value="${PERSONAL_META.ot}" placeholder="Ej: OT-2024-121" oninput="PERSONAL_META.ot=this.value" />
+      </div>
+      <div class="field">
+        <label>PNB</label>
+        <input type="text" id="meta-pnb" value="${PERSONAL_META.pnb}" placeholder="Ej: PNB-MD12-INV" oninput="PERSONAL_META.pnb=this.value" />
+      </div>
+    </div>
+  </div>`;
+
+  const metricsHtml = `
+  <div class="grid-4 gap-8" style="margin-bottom:14px">
+    <div class="metric accent">
+      <div class="metric-label">Total personas</div>
+      <div class="metric-value" id="pm-total">${total}</div>
+      <div class="metric-sub">en toda la línea</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Sectores</div>
+      <div class="metric-value">${PERSONAL_DATA.length}</div>
+      <div class="metric-sub">definidos</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Mayor sector</div>
+      <div class="metric-value" id="pm-mayor">${PERSONAL_DATA.length ? PERSONAL_DATA[mayorIdx].personas : 0}</div>
+      <div class="metric-sub" id="pm-mayor-nom">${PERSONAL_DATA.length ? PERSONAL_DATA[mayorIdx].nombre : '—'}</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Promedio</div>
+      <div class="metric-value">${PERSONAL_DATA.length ? Math.round(total / PERSONAL_DATA.length) : 0}</div>
+      <div class="metric-sub">personas / sector</div>
+    </div>
+  </div>`;
+
+  const tramosRows = PERSONAL_DATA.map((t, i) => {
+    const tot2 = PERSONAL_DATA.reduce((s, x) => s + Math.max(0, parseInt(x.personas) || 0), 0);
+    const pct = tot2 > 0 ? Math.round(((parseInt(t.personas) || 0) / tot2) * 100) : 0;
+    const col = TRAMO_COLORS[i % TRAMO_COLORS.length];
+    return `
+    <div class="tramo-row" id="trow-${i}">
+      <div class="move-btns">
+        <div class="move-btn" onclick="moveTramo(${i}, -1)">▲</div>
+        <div class="move-btn" onclick="moveTramo(${i},  1)">▼</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="width:10px;height:10px;border-radius:50%;background:${col};flex-shrink:0"></span>
+        <input class="tramo-nombre" value="${t.nombre}" oninput="PERSONAL_DATA[${i}].nombre=this.value" />
+      </div>
+      <input class="tramo-cant" type="number" min="0" max="999" value="${t.personas}"
+        oninput="PERSONAL_DATA[${i}].personas=Math.max(0,parseInt(this.value)||0);refreshTramosMetrics()" />
+      <div>
+        <div class="progress" style="margin-bottom:3px">
+          <div class="progress-fill" id="pbar-${i}" style="width:${pct}%;background:${col}"></div>
+        </div>
+        <div class="text-hint" id="ppct-${i}">${pct}%</div>
+      </div>
+      <button class="btn btn-danger btn-icon btn-sm" onclick="deleteTramo(${i})" title="Eliminar sector">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>`;
+  }).join('');
+
+  const editorHtml = `
+  <div class="card">
+    <div class="flex justify-between mb-12 flex-wrap gap-8">
+      <div class="card-title" style="margin-bottom:0">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Distribución por sector — ${cap.toUpperCase()} / ${prov.toUpperCase()} / ${mod.toUpperCase()}
+      </div>
+      <div class="flex gap-8 flex-wrap">
+        <span id="per-save-badge" class="badge badge-green hidden">✓ Guardado</span>
+        <button class="btn btn-ok" onclick="savePersonal()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Guardar cambios
+        </button>
+      </div>
+    </div>
+    <div style="margin-bottom:8px">
+      <div style="display:grid;grid-template-columns:30px 1fr 80px 140px 34px;gap:8px;padding:0 0 8px;border-bottom:1px solid var(--border)">
+        <span></span>
+        <span style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Sector / tramo</span>
+        <span style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;text-align:center">Personas</span>
+        <span style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Distribución</span>
+        <span></span>
+      </div>
+    </div>
+    <div id="tramos-container">${tramosRows}</div>
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+      <div class="flex gap-8 flex-wrap">
+        <input type="text" id="new-tramo-nombre" placeholder="Nombre del nuevo sector..." style="flex:1;min-width:160px;max-width:260px" />
+        <input type="number" id="new-tramo-cant" min="1" max="999" value="1" style="width:72px;text-align:center" />
+        <button class="btn btn-primary" onclick="addTramo()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Agregar sector
+        </button>
+      </div>
+    </div>
+  </div>`;
+
+  document.getElementById('personal-result').innerHTML = metaHtml + metricsHtml + editorHtml;
+}
+
+function refreshTramosMetrics() {
+  const total = PERSONAL_DATA.reduce((s, t) => s + Math.max(0, parseInt(t.personas) || 0), 0);
+  const el = id => document.getElementById(id);
+  if (el('pm-total')) el('pm-total').textContent = total;
+  if (PERSONAL_DATA.length && el('pm-mayor')) {
+    const max = PERSONAL_DATA.reduce((a, b) => a.personas >= b.personas ? a : b);
+    el('pm-mayor').textContent = max.personas;
+    if (el('pm-mayor-nom')) el('pm-mayor-nom').textContent = max.nombre;
+  }
+  PERSONAL_DATA.forEach((t, i) => {
+    const pct = total > 0 ? Math.round(((parseInt(t.personas) || 0) / total) * 100) : 0;
+    const pb = el('pbar-' + i);
+    const pp = el('ppct-' + i);
+    if (pb) pb.style.width = pct + '%';
+    if (pp) pp.textContent = pct + '%';
+  });
+}
+
+function moveTramo(i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= PERSONAL_DATA.length) return;
+  [PERSONAL_DATA[i], PERSONAL_DATA[j]] = [PERSONAL_DATA[j], PERSONAL_DATA[i]];
+  renderPersonal();
+}
+
+function deleteTramo(i) {
+  PERSONAL_DATA.splice(i, 1);
+  renderPersonal();
+}
+
+function addTramo() {
+  const nombre = (document.getElementById('new-tramo-nombre').value || '').trim();
+  const personas = Math.max(1, parseInt(document.getElementById('new-tramo-cant').value) || 1);
+  if (!nombre) { document.getElementById('new-tramo-nombre').focus(); return; }
+  PERSONAL_DATA.push({ nombre, personas });
+  document.getElementById('new-tramo-nombre').value = '';
+  document.getElementById('new-tramo-cant').value = '1';
+  renderPersonal();
+}
+
+async function savePersonal() {
+  if (!PERSONAL_KEY) return;
+  const { cap, prov, mod } = PERSONAL_KEY;
+  try {
+    await api(`/personal?capacidad=${cap}&proveedor=${prov}&modelo=${mod}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nombre_modelo: PERSONAL_META.nombre_modelo,
+        ot:            PERSONAL_META.ot,
+        pnb:           PERSONAL_META.pnb,
+        tramos:        PERSONAL_DATA,
+      }),
+    });
+    const badge = document.getElementById('per-save-badge');
+    if (badge) { badge.classList.remove('hidden'); setTimeout(() => badge.classList.add('hidden'), 2500); }
+  } catch(e) { alert('Error al guardar: ' + e.message); }
+}
+
+/* ── Page: Specs ──────────────────────── */
+async function showSpecs() {
+  const { cap, prov, mod } = getSel('s');
+  const lin = document.getElementById('s-lin').value;
+  const el = document.getElementById('specs-result');
+  if (!cap || !prov || !mod || !lin) { el.innerHTML = alert_html('warn', 'Completá todos los campos.'); return; }
+  try {
+    const d = await api(`/specs?capacidad=${cap}&proveedor=${prov}&modelo=${mod}&linea=${lin}`);
+    el.innerHTML = renderSpecs(d, cap, prov, mod, lin);
+  } catch(e) { el.innerHTML = alert_html('err', e.message); }
+}
+
+function renderSpecs(d, cap, prov, mod, lin) {
+  return `
+  <div class="card">
+    <div class="flex justify-between mb-12 flex-wrap gap-8">
+      <div class="fw-600" style="font-size:15px">${cap.toUpperCase()} · ${prov.toUpperCase()} · ${mod.toUpperCase()} — <span class="badge badge-blue">${lin.toUpperCase()}</span></div>
+      <span class="badge badge-gray">${d.refrigerante}</span>
+    </div>
+    <div class="grid-2 gap-12">
+      <div>
+        <div class="card-title">Rendimiento</div>
+        <div class="kv">
+          <div class="kv-row"><span>BTUs</span><span>${parseInt(d.btus).toLocaleString()}</span></div>
+          <div class="kv-row"><span>Consumo</span><span>${d.consumo_w} W</span></div>
+          <div class="kv-row"><span>Eficiencia SEER</span><span>${d.eficiencia_seer}</span></div>
+          <div class="kv-row"><span>Refrigerante</span><span>${d.refrigerante}</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="card-title">Ruido y dimensiones</div>
+        <div class="kv">
+          <div class="kv-row"><span>Ruido UI</span><span>${d.ruido_ui_db} dB</span></div>
+          <div class="kv-row"><span>Ruido UE</span><span>${d.ruido_ue_db} dB</span></div>
+          <div class="kv-row"><span>Dim. UI (L×A×H)</span><span>${d.ui_dim_mm[0]}×${d.ui_dim_mm[1]}×${d.ui_dim_mm[2]} mm</span></div>
+          <div class="kv-row"><span>Dim. UE (L×A×H)</span><span>${d.ue_dim_mm[0]}×${d.ue_dim_mm[1]}×${d.ue_dim_mm[2]} mm</span></div>
+        </div>
+      </div>
+    </div>
+    ${d.nota ? `<div style="margin-top:12px;padding:9px 12px;border-left:2px solid var(--accent-lt);background:var(--accent-lt);border-radius:0 var(--r) var(--r) 0;font-size:12px;color:var(--accent-dk)">${d.nota}</div>` : ''}
+  </div>`;
+}
+
+async function reloadSpecs() {
+  try {
+    await api('/reload-specs', { method: 'POST' });
+    setGlobalStatus('Specs recargadas', 'ok');
+    setTimeout(() => setGlobalStatus('Conectado', 'ok'), 2000);
+  } catch(e) { setGlobalStatus('Error', 'err'); }
+}
+
+
+/* ── Page: Layouts ────────────────────── */
+function htmlEscape(v) {
+  return String(v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+async function showLayout() {
+  const { cap, prov, mod } = getSel('l');
+  const el = document.getElementById('layout-result');
+  if (!cap || !prov || !mod) {
+    el.innerHTML = alert_html('warn', 'Seleccioná capacidad, proveedor y modelo.');
+    return;
+  }
+
+  try {
+    const d = await api(`/layouts?capacidad=${encodeURIComponent(cap)}&proveedor=${encodeURIComponent(prov)}&modelo=${encodeURIComponent(mod)}`);
+    el.innerHTML = renderLayoutEditor(d, cap, prov, mod, true);
+  } catch(e) {
+    el.innerHTML = renderLayoutEditor({}, cap, prov, mod, false);
+  }
+}
+
+function renderLayoutEditorEmpty() {
+  const { cap, prov, mod } = getSel('l');
+  const el = document.getElementById('layout-result');
+  if (!cap || !prov || !mod) {
+    el.innerHTML = alert_html('warn', 'Seleccioná capacidad, proveedor y modelo antes de agregar un link.');
+    return;
+  }
+  el.innerHTML = renderLayoutEditor({}, cap, prov, mod, false);
+}
+
+function renderLayoutEditor(d, cap, prov, mod, exists) {
+  const url = d.url || '';
+  const nombre = d.nombre || '';
+  const descripcion = d.descripcion || '';
+  const estado = d.estado || 'Link disponible';
+  const version = d.version || '';
+  const fecha = d.fecha || '';
+
+  return `
+  <div class="card">
+    <div class="flex justify-between mb-12 flex-wrap gap-8">
+      <div>
+        <div class="card-title" style="margin-bottom:6px">Layout del modelo</div>
+        <div class="fw-600" style="font-size:15px">${cap.toUpperCase()} · ${prov.toUpperCase()} · ${mod.toUpperCase()}</div>
+        <div class="text-hint mt-4">${exists ? 'Link cargado para este modelo.' : 'Todavía no hay link cargado para este modelo.'}</div>
+      </div>
+      <div class="flex gap-8 flex-wrap">
+        <span class="badge badge-blue">${cap.toUpperCase()}</span>
+        <span class="badge badge-gray">${prov.toUpperCase()}</span>
+        <span class="badge badge-gray">${mod.toUpperCase()}</span>
+      </div>
+    </div>
+
+    ${url ? `
+      <div class="alert alert-info mb-12">
+        <span>SharePoint no permite visualizar este archivo dentro del sistema. Abrilo desde el botón en una nueva pestaña.</span>
+      </div>
+
+      <div class="mt-16 flex gap-8 flex-wrap">
+        <a class="btn btn-primary" href="${htmlEscape(url)}" target="_blank" rel="noopener noreferrer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3h7v7"/><path d="M10 14 21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>
+          Abrir layout en SharePoint
+        </a>
+        <button class="btn" onclick="copyLayoutLink()">Copiar link</button>
+      </div>
+    ` : ''}
+
+    <hr>
+
+    <div class="card-title">Agregar / editar link</div>
+    <div class="grid-3 gap-12">
+      <div class="field">
+        <label>Nombre del layout</label>
+        <input type="text" id="layout-nombre" value="${htmlEscape(nombre)}" placeholder="Ej: Layout 12K Midea INV" />
+      </div>
+      <div class="field">
+        <label>Estado</label>
+        <select id="layout-estado">
+          ${['Link disponible','Actual','En prueba','Obsoleto'].map(x => `<option ${x === estado ? 'selected' : ''}>${x}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field">
+        <label>Versión</label>
+        <input type="text" id="layout-version" value="${htmlEscape(version)}" placeholder="Ej: v1, v2" />
+      </div>
+    </div>
+
+    <div class="grid-2 gap-12 mt-12">
+      <div class="field">
+        <label>Link del layout</label>
+        <input type="text" id="layout-url" value="${htmlEscape(url)}" placeholder="Pegá acá el link de SharePoint" />
+      </div>
+      <div class="field">
+        <label>Fecha / actualización</label>
+        <input type="text" id="layout-fecha" value="${htmlEscape(fecha)}" placeholder="Ej: 2026-05-05" />
+      </div>
+    </div>
+
+    <div class="field mt-12">
+      <label>Descripción / nota</label>
+      <input type="text" id="layout-descripcion" value="${htmlEscape(descripcion)}" placeholder="Ej: Layout vigente cargado en nube compartida" />
+    </div>
+
+    <div class="mt-16 flex gap-8 flex-wrap">
+      <button class="btn btn-ok" onclick="saveLayoutLink()">
+        Guardar link
+      </button>
+      <button class="btn btn-danger" onclick="deleteLayoutLink()" ${exists ? '' : 'disabled'}>
+        Eliminar link
+      </button>
+    </div>
+  </div>`;
+}
+
+function currentLayoutSelectionOrWarn() {
+  const sel = getSel('l');
+  const el = document.getElementById('layout-result');
+  if (!sel.cap || !sel.prov || !sel.mod) {
+    el.innerHTML = alert_html('warn', 'Seleccioná capacidad, proveedor y modelo.');
+    return null;
+  }
+  return sel;
+}
+
+async function saveLayoutLink() {
+  const sel = currentLayoutSelectionOrWarn();
+  if (!sel) return;
+
+  const body = {
+    nombre: document.getElementById('layout-nombre')?.value || '',
+    url: document.getElementById('layout-url')?.value || '',
+    descripcion: document.getElementById('layout-descripcion')?.value || '',
+    estado: document.getElementById('layout-estado')?.value || 'Link disponible',
+    version: document.getElementById('layout-version')?.value || '',
+    fecha: document.getElementById('layout-fecha')?.value || '',
+  };
+
+  if (!body.url.trim()) {
+    document.getElementById('layout-result').insertAdjacentHTML('afterbegin', alert_html('warn', 'Pegá un link antes de guardar.'));
+    return;
+  }
+
+  try {
+    await api(`/layouts?capacidad=${encodeURIComponent(sel.cap)}&proveedor=${encodeURIComponent(sel.prov)}&modelo=${encodeURIComponent(sel.mod)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    setGlobalStatus('Layout guardado', 'ok');
+    showLayout();
+  } catch(e) {
+    document.getElementById('layout-result').insertAdjacentHTML('afterbegin', alert_html('err', e.message));
+  }
+}
+
+async function deleteLayoutLink() {
+  const sel = currentLayoutSelectionOrWarn();
+  if (!sel) return;
+
+  try {
+    await api(`/layouts?capacidad=${encodeURIComponent(sel.cap)}&proveedor=${encodeURIComponent(sel.prov)}&modelo=${encodeURIComponent(sel.mod)}`, {
+      method: 'DELETE',
+    });
+    setGlobalStatus('Layout eliminado', 'ok');
+    document.getElementById('layout-result').innerHTML = renderLayoutEditor({}, sel.cap, sel.prov, sel.mod, false);
+  } catch(e) {
+    document.getElementById('layout-result').insertAdjacentHTML('afterbegin', alert_html('err', e.message));
+  }
+}
+
+function copyLayoutLink() {
+  const url = document.getElementById('layout-url')?.value || '';
+  if (!url) return;
+  navigator.clipboard.writeText(url)
+    .then(() => setGlobalStatus('Link copiado', 'ok'))
+    .catch(() => setGlobalStatus('No se pudo copiar', 'warn'));
+}
+
+async function reloadLayouts() {
+  try {
+    await api('/reload-layouts', { method: 'POST' });
+    document.getElementById('layout-result').innerHTML = alert_html('ok', 'Layouts recargados correctamente.');
+  } catch(e) { document.getElementById('layout-result').innerHTML = alert_html('err', e.message); }
+}
+
+/* ── Admin ────────────────────────────── */
+function getAdminKey() { return localStorage.getItem('ADMIN_API_KEY') || ''; }
+function setAdminKey(k) { k ? localStorage.setItem('ADMIN_API_KEY', k) : localStorage.removeItem('ADMIN_API_KEY'); }
+
+function setAdminStatus(text, kind = '') {
+  const el = document.getElementById('admin-status');
+  el.className = 'status-pill' + (kind ? ' ' + kind : '');
+  el.innerHTML = `<span class="dot"></span>${text}`;
+}
+
+function adminLogin() {
+  const key = document.getElementById('adminKey').value.trim();
+  if (!key) { alert('Ingresá una API Key.'); return; }
+  setAdminKey(key);
+  document.getElementById('admin-panel').classList.remove('hidden');
+  setAdminStatus('Conectado', 'ok');
+}
+
+function adminLogout() {
+  setAdminKey('');
+  document.getElementById('admin-panel').classList.add('hidden');
+  clearGrid('pallet'); clearGrid('specs');
+  setAdminStatus('Desconectado');
+}
+
+function switchAdminTab(which) {
+  document.getElementById('admin-panel-pallet').classList.toggle('hidden', which !== 'pallet');
+  document.getElementById('admin-panel-specs').classList.toggle('hidden',  which !== 'specs');
+  document.getElementById('tab-pallet-csv').classList.toggle('active', which === 'pallet');
+  document.getElementById('tab-specs-csv').classList.toggle('active',  which === 'specs');
+}
+
+async function apiAdmin(path, method = 'GET', body = null) {
+  const headers = { 'X-API-Key': getAdminKey() };
+  if (body && method !== 'GET') headers['Content-Type'] = 'application/json';
+  const r = await fetch(base() + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  if (!r.ok) throw new Error(r.status + ' — ' + await r.text());
+  const ct = r.headers.get('content-type') || '';
+  return ct.includes('json') ? r.json() : r.text();
+}
+
+/* ── CSV ↔ Grid ─────────────────────── */
+const PALLET_COLS = [
+  {k:'capacidad',       label:'Capacidad',       cls:''},
+  {k:'proveedor',       label:'Proveedor',        cls:''},
+  {k:'modelo',          label:'Modelo',           cls:''},
+  {k:'unidades_por_pallet', label:'U/Pallet',     cls:'narrow'},
+  {k:'capas',           label:'Capas',            cls:'narrow'},
+  {k:'cajas_por_capa',  label:'Cjas/Capa',        cls:'narrow'},
+  {k:'dim_pallet_l_mm', label:'L mm',             cls:'narrow'},
+  {k:'dim_pallet_a_mm', label:'A mm',             cls:'narrow'},
+  {k:'dim_pallet_h_mm', label:'H mm',             cls:'narrow'},
+  {k:'peso_unitario_kg',label:'Peso u. kg',       cls:'narrow'},
+  {k:'peso_max_pallet_kg',label:'Peso máx kg',    cls:'narrow'},
+  {k:'apilable_hasta',  label:'Apilable',         cls:'narrow'},
+  {k:'orientacion',     label:'Orientación',      cls:''},
+  {k:'embalaje',        label:'Embalaje',         cls:''},
+  {k:'sku',             label:'SKU',              cls:'wide'},
+  {k:'notas',           label:'Notas',            cls:'wide'},
+];
+
+const SPECS_COLS = [
+  {k:'capacidad',       label:'Capacidad',        cls:''},
+  {k:'proveedor',       label:'Proveedor',        cls:''},
+  {k:'modelo',          label:'Modelo',           cls:''},
+  {k:'linea',           label:'Línea',            cls:'narrow'},
+  {k:'btus',            label:'BTUs',             cls:'narrow'},
+  {k:'consumo_w',       label:'W',                cls:'narrow'},
+  {k:'eficiencia_seer', label:'SEER',             cls:'narrow'},
+  {k:'ruido_ui_db',     label:'dB UI',            cls:'narrow'},
+  {k:'ruido_ue_db',     label:'dB UE',            cls:'narrow'},
+  {k:'ui_dim_mm_l',     label:'UI L',             cls:'narrow'},
+  {k:'ui_dim_mm_a',     label:'UI A',             cls:'narrow'},
+  {k:'ui_dim_mm_h',     label:'UI H',             cls:'narrow'},
+  {k:'ue_dim_mm_l',     label:'UE L',             cls:'narrow'},
+  {k:'ue_dim_mm_a',     label:'UE A',             cls:'narrow'},
+  {k:'ue_dim_mm_h',     label:'UE H',             cls:'narrow'},
+  {k:'refrigerante',    label:'Refrig.',          cls:'narrow'},
+  {k:'nota',            label:'Nota',             cls:'wide'},
+];
+
+// In-memory data for each grid
+let GRID_DATA = { pallet: [], specs: [] };
+
+function parseCsv(text) {
+  const lines = text.trim().split('\n');
+  if (lines.length < 1) return { headers: [], rows: [] };
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+  const rows = lines.slice(1).filter(l => l.trim()).map(line => {
+    const vals = [];
+    let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') { inQ = !inQ; }
+      else if (ch === ',' && !inQ) { vals.push(cur.trim()); cur = ''; }
+      else { cur += ch; }
+    }
+    vals.push(cur.trim());
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = vals[i] !== undefined ? vals[i] : '');
+    return obj;
+  });
+  return { headers, rows };
+}
+
+function rowsToCsv(rows, cols) {
+  const headers = cols.map(c => c.k).join(',');
+  const lines = rows.map(row =>
+    cols.map(c => {
+      const v = String(row[c.k] ?? '');
+      return v.includes(',') || v.includes('"') ? `"${v.replace(/"/g,'""')}"` : v;
+    }).join(',')
+  );
+  return [headers, ...lines].join('\n');
+}
+
+function buildGrid(gridId, emptyId, cols, data) {
+  const table = document.getElementById(gridId);
+  const empty = document.getElementById(emptyId);
+  if (!data.length) { table.style.display = 'none'; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+  table.style.display = '';
+
+  // Header
+  table.querySelector('thead').innerHTML = `<tr>
+    <th class="grid-row-num">#</th>
+    ${cols.map(c => `<th>${c.label}</th>`).join('')}
+    <th style="width:44px"></th>
+  </tr>`;
+
+  // Body
+  table.querySelector('tbody').innerHTML = data.map((row, ri) => `
+    <tr id="gr-${gridId}-${ri}">
+      <td class="grid-row-num">${ri + 1}</td>
+      ${cols.map(c => `
+        <td><input class="grid-cell ${c.cls}" value="${escHtml(row[c.k] ?? '')}"
+          data-grid="${gridId === 'grid-pallet' ? 'pallet' : 'specs'}" data-row="${ri}" data-col="${c.k}"
+          oninput="GRID_DATA['${gridId === 'grid-pallet' ? 'pallet' : 'specs'}'][${ri}]['${c.k}']=this.value"
+        /></td>`).join('')}
+      <td style="text-align:center">
+        <button class="grid-del" onclick="deleteGridRow('${gridId === 'grid-pallet' ? 'pallet' : 'specs'}',${ri})" title="Eliminar fila">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </td>
+    </tr>`).join('');
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function clearGrid(which) {
+  GRID_DATA[which] = [];
+  const gridId = which === 'pallet' ? 'grid-pallet' : 'grid-specs';
+  const emptyId = which === 'pallet' ? 'pallet-grid-empty' : 'specs-grid-empty';
+  const table = document.getElementById(gridId);
+  const empty = document.getElementById(emptyId);
+  table.querySelector('thead').innerHTML = '';
+  table.querySelector('tbody').innerHTML = '';
+  table.style.display = 'none';
+  empty.style.display = 'block';
+}
+
+function deleteGridRow(which, ri) {
+  GRID_DATA[which].splice(ri, 1);
+  buildGrid(
+    which === 'pallet' ? 'grid-pallet' : 'grid-specs',
+    which === 'pallet' ? 'pallet-grid-empty' : 'specs-grid-empty',
+    which === 'pallet' ? PALLET_COLS : SPECS_COLS,
+    GRID_DATA[which]
+  );
+}
+
+function addEmptyRow(which) {
+  const cols = which === 'pallet' ? PALLET_COLS : SPECS_COLS;
+  const empty = {};
+  cols.forEach(c => empty[c.k] = '');
+  GRID_DATA[which].push(empty);
+  buildGrid(
+    which === 'pallet' ? 'grid-pallet' : 'grid-specs',
+    which === 'pallet' ? 'pallet-grid-empty' : 'specs-grid-empty',
+    cols, GRID_DATA[which]
+  );
+  // Scroll to bottom
+  const wrap = document.getElementById(which === 'pallet' ? 'grid-pallet' : 'grid-specs').closest('div[style*="overflow"]');
+  if (wrap) wrap.scrollTop = wrap.scrollHeight;
+}
+
+// Load
+async function loadCsvGrid() {
+  try {
+    setAdminStatus('Cargando…');
+    const txt = await apiAdmin('/admin/csv');
+    const { rows } = parseCsv(txt);
+    // Fill missing keys
+    GRID_DATA.pallet = rows.map(r => {
+      const out = {};
+      PALLET_COLS.forEach(c => out[c.k] = r[c.k] ?? '');
+      return out;
+    });
+    buildGrid('grid-pallet', 'pallet-grid-empty', PALLET_COLS, GRID_DATA.pallet);
+    setAdminStatus(`${rows.length} filas cargadas`, 'ok');
+  } catch(e) { setAdminStatus('Error', 'err'); alert(e.message); }
+}
+
+async function loadSpecsGrid() {
+  try {
+    setAdminStatus('Cargando…');
+    const txt = await apiAdmin('/admin/specs');
+    const { rows } = parseCsv(txt);
+    GRID_DATA.specs = rows.map(r => {
+      const out = {};
+      SPECS_COLS.forEach(c => out[c.k] = r[c.k] ?? '');
+      return out;
+    });
+    buildGrid('grid-specs', 'specs-grid-empty', SPECS_COLS, GRID_DATA.specs);
+    setAdminStatus(`${rows.length} filas cargadas`, 'ok');
+  } catch(e) { setAdminStatus('Error', 'err'); alert(e.message); }
+}
+
+// Save
+async function saveCsvGrid() {
+  try {
+    if (!GRID_DATA.pallet.length) { alert('No hay datos para guardar. Cargá primero del servidor.'); return; }
+    setAdminStatus('Guardando…');
+    const csv = rowsToCsv(GRID_DATA.pallet, PALLET_COLS);
+    await apiAdmin('/admin/csv/replace', 'POST', { csv_text: csv });
+    setAdminStatus(`Guardado (${GRID_DATA.pallet.length} filas)`, 'ok');
+  } catch(e) { setAdminStatus('Error', 'err'); alert(e.message); }
+}
+
+async function saveSpecsGrid() {
+  try {
+    if (!GRID_DATA.specs.length) { alert('No hay datos para guardar. Cargá primero del servidor.'); return; }
+    setAdminStatus('Guardando…');
+    const csv = rowsToCsv(GRID_DATA.specs, SPECS_COLS);
+    await apiAdmin('/admin/specs/replace', 'POST', { csv_text: csv });
+    setAdminStatus(`Guardado (${GRID_DATA.specs.length} filas)`, 'ok');
+  } catch(e) { setAdminStatus('Error', 'err'); alert(e.message); }
+}
+
+// Add row buttons
+function addPalletRow() { addEmptyRow('pallet'); }
+function addSpecsRow()  { addEmptyRow('specs');  }
+
+// Export
+function exportCsvGrid(filename, which) {
+  const cols = which === 'pallet' ? PALLET_COLS : SPECS_COLS;
+  const csv = rowsToCsv(GRID_DATA[which], cols);
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// Import from file
+function importCsvGrid(inputId, which) {
+  const f = document.getElementById(inputId).files?.[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const { rows } = parseCsv(e.target.result);
+    const cols = which === 'pallet' ? PALLET_COLS : SPECS_COLS;
+    GRID_DATA[which] = rows.map(r => {
+      const out = {};
+      cols.forEach(c => out[c.k] = r[c.k] ?? '');
+      return out;
+    });
+    buildGrid(
+      which === 'pallet' ? 'grid-pallet' : 'grid-specs',
+      which === 'pallet' ? 'pallet-grid-empty' : 'specs-grid-empty',
+      cols, GRID_DATA[which]
+    );
+    setAdminStatus(`Importado (${rows.length} filas)`, 'ok');
+  };
+  reader.readAsText(f, 'utf-8');
+}
+
+// Keep old textarea functions as stubs to avoid reference errors
+function loadCsvText() { loadCsvGrid(); }
+function saveCsvText() { saveCsvGrid(); }
+function loadSpecsText() { loadSpecsGrid(); }
+function saveSpecsText() { saveSpecsGrid(); }
+function exportCsv() {}
+function importFile() {}
+
+/* ── Alert helper ─────────────────────── */
+const ALERT_ICONS = {
+  ok:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+  warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  err:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+  info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
+};
+function alert_html(kind, msg) {
+  return `<div class="alert alert-${kind}" style="margin-bottom:12px">${ALERT_ICONS[kind] || ''}<span>${msg}</span></div>`;
+}
+
+/* ── Keyboard shortcuts ───────────────── */
+document.addEventListener('keydown', e => {
+  if (['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) return;
+  if (e.key.toLowerCase() === 'i') showPallet();
+  if (e.key.toLowerCase() === 'c') calcPallets();
+  if (e.key.toLowerCase() === 's') showSpecs();
+});
+
+
+
+/* ── Page: Tiempos por puesto ────────── */
+let chartTiempos = null;
+
+function parseTiemposInput() {
+  const raw = (document.getElementById('t-tiempos').value || '').trim();
+  if (!raw) return [];
+  return raw
+    .split(/[,;\n]+/)
+    .map(x => parseFloat(x.trim().replace(',', '.')))
+    .filter(x => !isNaN(x) && x >= 0);
+}
+
+function getTiemposForm() {
+  return {
+    ...getSel('t'),
+    titulo: (document.getElementById('t-titulo').value || 'Distribución de tiempos por puesto').trim(),
+    limite: parseFloat(document.getElementById('t-limite').value) || 18,
+    tiempos: parseTiemposInput(),
+  };
+}
+
+function renderTiemposMetrics(tiempos, limite) {
+  const el = document.getElementById('tiempos-metrics');
+  if (!tiempos.length) { el.innerHTML = ''; return; }
+  const max = Math.max(...tiempos);
+  const min = Math.min(...tiempos);
+  const promedio = tiempos.reduce((a, b) => a + b, 0) / tiempos.length;
+  const critico = tiempos.indexOf(max) + 1;
+  const excedidos = tiempos.filter(t => t > limite).length;
+  el.innerHTML = `
+    <div class="metric accent"><div class="metric-label">Puestos</div><div class="metric-value">${tiempos.length}</div><div class="metric-sub">cargados</div></div>
+    <div class="metric"><div class="metric-label">Promedio</div><div class="metric-value">${promedio.toFixed(1)}</div><div class="metric-sub">segundos</div></div>
+    <div class="metric"><div class="metric-label">Puesto crítico</div><div class="metric-value">${critico}</div><div class="metric-sub">${max.toFixed(1)} s</div></div>
+    <div class="metric"><div class="metric-label">Excedidos</div><div class="metric-value">${excedidos}</div><div class="metric-sub">límite ${limite} s · mín ${min.toFixed(1)} s</div></div>
+  `;
+}
+
+function generarGraficoTiempos(data = null) {
+  const form = data || getTiemposForm();
+  const { cap, prov, mod, titulo, limite, tiempos } = form;
+  const alertEl = document.getElementById('tiempos-alert');
+
+  if (!tiempos.length) {
+    alertEl.innerHTML = alert_html('warn', 'Ingresá tiempos válidos separados por coma.');
+    renderTiemposMetrics([], limite);
+    return;
+  }
+
+  alertEl.innerHTML = '';
+  renderTiemposMetrics(tiempos, limite);
+
+  const puestos = tiempos.map((_, i) => `Puesto ${i + 1}`);
+  const base = tiempos.map(t => Math.min(t, limite));
+  const exceso = tiempos.map(t => Math.max(0, t - limite));
+  const ctx = document.getElementById('grafico-tiempos').getContext('2d');
+
+  if (chartTiempos) chartTiempos.destroy();
+
+  chartTiempos = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: puestos,
+      datasets: [
+        { label: `Hasta ${limite}s`, data: base, backgroundColor: '#2563EB', stack: 'tiempos' },
+        { label: 'Exceso', data: exceso, backgroundColor: '#DC2626', stack: 'tiempos' },
+      ]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        x: { stacked: true },
+        y: {
+          stacked: true,
+          beginAtZero: true,
+          ticks: { stepSize: 1 },
+          title: { display: true, text: 'Tiempo (segundos)' }
+        }
+      },
+      plugins: {
+        title: { display: true, text: `${titulo}${cap && prov && mod ? ' · ' + cap.toUpperCase() + ' / ' + prov.toUpperCase() + ' / ' + mod.toUpperCase() : ''}` },
+        legend: { display: true },
+        tooltip: {
+          callbacks: {
+            afterBody: (items) => {
+              const i = items[0].dataIndex;
+              return `Total: ${tiempos[i]} s`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+async function loadTiempos() {
+  const { cap, prov, mod } = getSel('t');
+  const alertEl = document.getElementById('tiempos-alert');
+  if (!cap || !prov || !mod) { alertEl.innerHTML = alert_html('warn', 'Seleccioná capacidad, proveedor y modelo.'); return; }
+  try {
+    const d = await api(`/tiempos?capacidad=${cap}&proveedor=${prov}&modelo=${mod}`);
+    document.getElementById('t-titulo').value = d.titulo || 'Distribución de tiempos por puesto';
+    document.getElementById('t-limite').value = d.limite || 18;
+    document.getElementById('t-tiempos').value = (d.tiempos || []).join(', ');
+    generarGraficoTiempos({ cap, prov, mod, titulo: d.titulo, limite: d.limite, tiempos: d.tiempos || [] });
+    alertEl.innerHTML = alert_html('ok', 'Tiempos cargados correctamente.');
+  } catch(e) {
+    alertEl.innerHTML = alert_html('warn', 'No hay tiempos guardados para este modelo. Podés cargarlos y guardarlos desde esta pestaña.');
+    renderTiemposMetrics([], parseFloat(document.getElementById('t-limite').value) || 18);
+  }
+}
+
+async function saveTiempos() {
+  const form = getTiemposForm();
+  const alertEl = document.getElementById('tiempos-alert');
+  if (!form.cap || !form.prov || !form.mod) { alertEl.innerHTML = alert_html('warn', 'Seleccioná capacidad, proveedor y modelo.'); return; }
+  if (!form.tiempos.length) { alertEl.innerHTML = alert_html('warn', 'Ingresá al menos un tiempo válido.'); return; }
+  try {
+    await api(`/tiempos?capacidad=${form.cap}&proveedor=${form.prov}&modelo=${form.mod}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ titulo: form.titulo, limite: form.limite, tiempos: form.tiempos }),
+    });
+    generarGraficoTiempos(form);
+    alertEl.innerHTML = alert_html('ok', 'Tiempos guardados correctamente.');
+  } catch(e) { alertEl.innerHTML = alert_html('err', e.message); }
+}
+
+async function deleteTiempos() {
+  const { cap, prov, mod } = getSel('t');
+  const alertEl = document.getElementById('tiempos-alert');
+  if (!cap || !prov || !mod) { alertEl.innerHTML = alert_html('warn', 'Seleccioná capacidad, proveedor y modelo.'); return; }
+  try {
+    await api(`/tiempos?capacidad=${cap}&proveedor=${prov}&modelo=${mod}`, { method: 'DELETE' });
+    document.getElementById('t-tiempos').value = '';
+    renderTiemposMetrics([], parseFloat(document.getElementById('t-limite').value) || 18);
+    if (chartTiempos) { chartTiempos.destroy(); chartTiempos = null; }
+    alertEl.innerHTML = alert_html('ok', 'Tiempos eliminados para este modelo.');
+  } catch(e) { alertEl.innerHTML = alert_html('err', e.message); }
+}
+
+async function reloadTiempos() {
+  const alertEl = document.getElementById('tiempos-alert');
+  try {
+    const d = await api('/reload-tiempos', { method: 'POST' });
+    alertEl.innerHTML = alert_html('ok', `Tiempos recargados. Registros: ${d.rows}`);
+  } catch(e) { alertEl.innerHTML = alert_html('err', e.message); }
+}
+
+/* ── Init ─────────────────────────────── */
+if (getAdminKey()) {
+  document.getElementById('admin-panel').classList.remove('hidden');
+  setAdminStatus('Conectado', 'ok');
+}
+loadCatalogo();
+loadLineas();
+</script>
+</body>
+</html>
