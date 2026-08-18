@@ -115,7 +115,7 @@
     .api-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
 
     /* Page */
-    .page { display: none; padding: 28px; max-width: 1100px; }
+    .page { display: none; padding: 0; width: 100%; max-width: 1280px; }
     .page.active { display: block; }
 
     /* Section headers */
@@ -379,3 +379,40 @@
     .text-hint  { color: var(--hint); font-size: 12px; }
     .fw-600 { font-weight: 600; }
     .hidden { display: none !important; }
+
+    /* Ingeniería orientada al modelo */
+    .home-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, .7fr); gap: 14px; }
+    .active-summary { border-top: 3px solid var(--accent); }
+    .model-name { font-size: 20px; line-height: 1.25; font-weight: 600; letter-spacing: -.2px; }
+    .model-code { margin-top: 8px; color: var(--muted); font-family: 'DM Mono', monospace; font-size: 12px; }
+    .empty-state { min-height: 120px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 6px; text-align: center; color: var(--muted); }
+    .empty-state strong { color: var(--text); font-size: 14px; }
+    .context-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .technical-sections > div { padding: 14px; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface2); }
+    .technical-sections .kv-row span { padding-top: 7px; padding-bottom: 7px; }
+    .table-scroll { overflow-x: auto; }
+    .technical-table td:nth-child(2), .technical-table td:nth-child(3) { text-align: right; }
+    .data-issue { padding: 8px 10px; border-left: 3px solid var(--warn); background: var(--warn-lt); font-size: 12px; margin-bottom: 6px; }
+    #active-model-indicator { max-width: 360px; padding: 4px 5px 4px 10px; }
+    #active-model-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #active-model-indicator .btn { margin-left: 3px; }
+
+    button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible {
+      outline: 2px solid var(--accent); outline-offset: 2px;
+    }
+
+    @media (max-width: 1100px) {
+      .topbar { align-items: flex-start; }
+      .topbar-right { flex-wrap: wrap; justify-content: flex-end; }
+      .home-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 860px) {
+      .sidebar { display: flex; width: 190px; }
+      .page { padding: 0; }
+      .topbar { padding: 12px 18px; }
+      .api-input-wrap { display: none; }
+      .technical-sections { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 700px) {
+      .sidebar { display: none; }
+    }
