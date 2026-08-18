@@ -1148,6 +1148,12 @@ async function showFicha() {
   try {
     const summary = await api(`/modelos/${encodeURIComponent(identity.model_id)}/resumen`);
     el.innerHTML = renderModelSummary(summary);
+    const [info, personal, layout] = await Promise.all([
+      api(`/pallets?capacidad=${encodeURIComponent(cap)}&proveedor=${encodeURIComponent(prov)}&modelo=${encodeURIComponent(mod)}`),
+      apiOptional(`/personal?capacidad=${encodeURIComponent(cap)}&proveedor=${encodeURIComponent(prov)}&modelo=${encodeURIComponent(mod)}`),
+      apiOptional(`/layouts?capacidad=${encodeURIComponent(cap)}&proveedor=${encodeURIComponent(prov)}&modelo=${encodeURIComponent(mod)}`),
+    ]);
+    el.innerHTML = renderFicha(info, personal, cap, prov, mod, layout);
   } catch(e) { el.innerHTML = alert_html('err', e.message); }
 }
 

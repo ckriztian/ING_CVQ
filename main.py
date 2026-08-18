@@ -21,24 +21,11 @@ logger = logging.getLogger("bgh_sistema_experto")
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 
 BASE_DIR = Path(__file__).resolve().parent
-DATA_PATHS = {
-    "palletizacion": BASE_DIR / "palletizacion.csv",
-    "especificaciones": BASE_DIR / "especificaciones.csv",
-    "personal": BASE_DIR / "personal_linea.json",
-    "layouts": BASE_DIR / "layouts.json",
-    "tiempos": BASE_DIR / "tiempos_linea.json",
-    "modelos": BASE_DIR / "modelos.json",
-}
-
-# Alias conservados porque las pruebas y las operaciones administrativas aíslan
-# cada fuente sustituyendo su ruta. Todas las rutas, incluido MODELOS_PATH, se
-# crean juntas antes de cargar cualquier archivo durante la importación Uvicorn.
-CSV_PATH = DATA_PATHS["palletizacion"]
-ESPEC_PATH = DATA_PATHS["especificaciones"]
-PERSONAL_PATH = DATA_PATHS["personal"]
-LAYOUTS_PATH = DATA_PATHS["layouts"]
-TIEMPOS_PATH = DATA_PATHS["tiempos"]
-MODELOS_PATH = DATA_PATHS["modelos"]
+CSV_PATH = BASE_DIR / "palletizacion.csv"
+ESPEC_PATH = BASE_DIR / "especificaciones.csv"
+PERSONAL_PATH = BASE_DIR / "personal_linea.json"
+LAYOUTS_PATH = BASE_DIR / "layouts.json"
+TIEMPOS_PATH = BASE_DIR / "tiempos_linea.json"
 
 PALLET_COLUMNS = [
     "capacidad", "proveedor", "modelo", "unidades_por_pallet", "capas",
@@ -275,11 +262,7 @@ SPECS = load_specs(ESPEC_PATH)
 PERSONAL = load_json(PERSONAL_PATH, "personal de línea")
 LAYOUTS = load_json(LAYOUTS_PATH, "layouts")
 TIEMPOS = load_json(TIEMPOS_PATH, "tiempos de línea")
-# La carga crítica no depende del alias global MODELOS_PATH. Esto también hace
-# segura la importación en el subproceso que crea Uvicorn --reload en Windows,
-# aun cuando herramientas de sincronización apliquen parcialmente el bloque de
-# aliases. BASE_DIR siempre se define antes de ejecutar esta línea.
-MODELOS = load_models(BASE_DIR / "modelos.json")
+MODELOS = load_models(MODELOS_PATH)
 MODELS_BY_ID = {item["model_id"]: item for item in MODELOS}
 MODEL_ID_BY_KEY = {
     (norm(item["capacidad"]), norm(item["proveedor"]), norm(item["modelo"])): item["model_id"]
@@ -661,7 +644,7 @@ def reload_all():
     PERSONAL = load_json(PERSONAL_PATH, "personal de línea")
     LAYOUTS = load_json(LAYOUTS_PATH, "layouts")
     TIEMPOS = load_json(TIEMPOS_PATH, "tiempos de línea")
-    MODELOS = load_models(BASE_DIR / "modelos.json")
+    MODELOS = load_models(MODELOS_PATH)
     MODELS_BY_ID = {item["model_id"]: item for item in MODELOS}
     MODEL_ID_BY_KEY = {
         (norm(item["capacidad"]), norm(item["proveedor"]), norm(item["modelo"])): item["model_id"]
