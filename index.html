@@ -448,6 +448,10 @@
     <div class="topbar">
       <div class="topbar-title" id="topbar-title">Palletización</div>
       <div class="topbar-right">
+        <div id="active-model-indicator" class="status-pill" title="Modelo activo">
+          <span class="dot"></span><span id="active-model-text">Sin modelo activo</span>
+          <button class="btn btn-sm hidden" id="change-model-btn" onclick="changeActiveModel()">Cambiar</button>
+        </div>
         <div class="api-input-wrap">
           <span class="api-label">API URL</span>
           <input class="api-input" id="baseUrl" value="http://127.0.0.1:8000" />
@@ -474,7 +478,7 @@
             </div>
             <div class="field">
               <label>Modelo</label>
-              <select id="p-mod"></select>
+              <select id="p-mod" onchange="onModelChange('p')"></select>
             </div>
             <div class="field">
               <label>Cantidad de unidades</label>
@@ -517,7 +521,7 @@
             </div>
             <div class="field">
               <label>Modelo</label>
-              <select id="f-mod"></select>
+              <select id="f-mod" onchange="onModelChange('f')"></select>
             </div>
           </div>
           <div class="mt-16">
@@ -547,7 +551,7 @@
             </div>
             <div class="field">
               <label>Modelo</label>
-              <select id="per-mod"></select>
+              <select id="per-mod" onchange="onModelChange('per')"></select>
             </div>
           </div>
           <div class="mt-16">
@@ -577,7 +581,7 @@
             </div>
             <div class="field">
               <label>Modelo</label>
-              <select id="s-mod"></select>
+              <select id="s-mod" onchange="onModelChange('s')"></select>
             </div>
             <div class="field">
               <label>Línea</label>
@@ -721,7 +725,7 @@
             </div>
             <div class="field">
               <label>Modelo</label>
-              <select id="l-mod"></select>
+              <select id="l-mod" onchange="onModelChange('l')"></select>
             </div>
           </div>
           <div class="mt-16 flex gap-8 flex-wrap">
@@ -756,7 +760,7 @@
             </div>
             <div class="field">
               <label>Modelo</label>
-              <select id="t-mod"></select>
+              <select id="t-mod" onchange="onModelChange('t')"></select>
             </div>
             <div class="field">
               <label>Límite segundos</label>
@@ -780,8 +784,8 @@
             <input type="number" id="t-ciclos" value="3" min="1" max="20">
           </div>
 
-          <button class="btn" onclick="generarTablaCiclos()">
-            Generar tabla de carga
+          <button class="btn" disabled title="Función en desarrollo">
+            Generar tabla de carga · Función en desarrollo
           </button>
 
           <div class="mt-16 flex gap-8 flex-wrap">
@@ -837,10 +841,28 @@ function switchPage(id, btn) {
 function base() { return document.getElementById('baseUrl').value.replace(/\/$/, ''); }
 
 async function api(path, opts = {}) {
-  const r = await fetch(base() + path, opts);
-  if (!r.ok) throw new Error(`${r.status} — ${await r.text()}`);
+  let r;
+  try { r = await fetch(base() + path, opts); }
+  catch (_) { throw new Error('API no disponible. Verificá la conexión con el servidor.'); }
+  if (!r.ok) {
+    const messages = {401:'No autorizado.',404:'No existe información registrada.',422:'Datos inválidos.',500:'Error del servidor.',503:'Administración no configurada.'};
+    let detail = '';
+    try { detail = (await r.json()).detail || ''; } catch (_) {}
+    const error = new Error(detail || messages[r.status] || `Error HTTP ${r.status}`);
+    error.status = r.status;
+    throw error;
+  }
+  if (r.status === 204) return null;
   const ct = r.headers.get('content-type') || '';
   return ct.includes('json') ? r.json() : r.text();
+}
+
+async function apiOptional(path) {
+  try { return await api(path); }
+  catch (error) {
+    if (error.status === 404) return null;
+    throw error;
+  }
 }
 
 function setGlobalStatus(text, kind = '') {
@@ -851,13 +873,17 @@ function setGlobalStatus(text, kind = '') {
 
 /* ── Catalogue helpers ─────────────────── */
 let CATALOGUE = [];
+let MASTER_MODELS = [];
+let activeModel = null;
+let SYNCING_ACTIVE = false;
 let LINEAS    = ['L01', 'L03'];
 
 async function loadCatalogo() {
   try {
-    CATALOGUE = await api('/catalogo');
+    [CATALOGUE, MASTER_MODELS] = await Promise.all([api('/catalogo'), api('/modelos')]);
     setGlobalStatus('Conectado', 'ok');
     populateCaps();
+    restoreActiveModel();
   } catch(e) {
     setGlobalStatus('Sin conexión', 'err');
   }
@@ -896,7 +922,10 @@ function onProvChange(pfx) {
   const mods = [...new Set(CATALOGUE.filter(i => i.capacidad === cap && i.proveedor === prov).map(i => i.modelo))].sort();
   const modSel = document.getElementById(pfx + '-mod');
   modSel.innerHTML = '<option value="">— Modelo —</option>' + mods.map(m => `<option>${m}</option>`).join('');
-  if (mods.length === 1) modSel.value = mods[0];
+  if (mods.length === 1) {
+    modSel.value = mods[0];
+    if (!SYNCING_ACTIVE) onModelChange(pfx);
+  }
 }
 
 function getSel(pfx) {
@@ -905,6 +934,70 @@ function getSel(pfx) {
     prov: document.getElementById(pfx + '-prov').value,
     mod:  document.getElementById(pfx + '-mod').value,
   };
+}
+
+function findMasterModel(cap, prov, mod) {
+  return MASTER_MODELS.find(item => item.capacidad === cap && item.proveedor === prov && item.modelo === mod) || null;
+}
+
+function onModelChange(pfx) {
+  if (SYNCING_ACTIVE) return;
+  const { cap, prov, mod } = getSel(pfx);
+  if (!cap || !prov || !mod) return;
+  const identity = findMasterModel(cap, prov, mod);
+  if (identity) setActiveModel(identity);
+}
+
+function syncSelections(identity) {
+  SYNCING_ACTIVE = true;
+  try {
+    PREFIXES.forEach(pfx => {
+      const cap = document.getElementById(pfx + '-cap');
+      if (!cap) return;
+      cap.value = identity.capacidad;
+      onCapChange(pfx);
+      document.getElementById(pfx + '-prov').value = identity.proveedor;
+      onProvChange(pfx);
+      document.getElementById(pfx + '-mod').value = identity.modelo;
+    });
+  } finally {
+    SYNCING_ACTIVE = false;
+  }
+}
+
+function setActiveModel(identity, persist = true) {
+  activeModel = identity;
+  syncSelections(identity);
+  const label = `${identity.capacidad.toUpperCase()} | ${identity.proveedor.toUpperCase()} | ${identity.modelo.toUpperCase()}`;
+  document.getElementById('active-model-text').textContent = `${label} · ${identity.model_id}`;
+  document.getElementById('active-model-indicator').classList.add('ok');
+  document.getElementById('change-model-btn').classList.remove('hidden');
+  if (persist) sessionStorage.setItem('ACTIVE_MODEL_ID', identity.model_id);
+}
+
+function restoreActiveModel() {
+  const modelId = sessionStorage.getItem('ACTIVE_MODEL_ID');
+  if (!modelId) return;
+  const identity = MASTER_MODELS.find(item => item.model_id === modelId);
+  if (identity) setActiveModel(identity, false);
+  else sessionStorage.removeItem('ACTIVE_MODEL_ID');
+}
+
+function changeActiveModel() {
+  activeModel = null;
+  sessionStorage.removeItem('ACTIVE_MODEL_ID');
+  document.getElementById('active-model-text').textContent = 'Sin modelo activo';
+  document.getElementById('active-model-indicator').classList.remove('ok');
+  document.getElementById('change-model-btn').classList.add('hidden');
+  switchPage('pallets', document.querySelector('[data-page="pallets"]'));
+  document.getElementById('p-cap').focus();
+}
+
+function activeModelForSelection(pfx) {
+  const selection = getSel(pfx);
+  const identity = findMasterModel(selection.cap, selection.prov, selection.mod);
+  if (identity && (!activeModel || activeModel.model_id !== identity.model_id)) setActiveModel(identity);
+  return identity;
 }
 
 function syncLayoutSelectionFromFicha(cap, prov, mod) {
@@ -935,7 +1028,7 @@ async function showPallet() {
   const el = document.getElementById('pallet-result');
   if (!cap || !prov || !mod) { el.innerHTML = alert_html('warn', 'Seleccioná capacidad, proveedor y modelo.'); return; }
   try {
-    const d = await api(`/pallets?capacidad=${cap}&proveedor=${prov}&modelo=${mod}`);
+    const d = await api(`/pallets?capacidad=${encodeURIComponent(cap)}&proveedor=${encodeURIComponent(prov)}&modelo=${encodeURIComponent(mod)}`);
     el.innerHTML = renderPalletInfo(d, cap, prov, mod);
   } catch(e) { el.innerHTML = alert_html('err', e.message); }
 }
@@ -948,7 +1041,7 @@ async function calcPallets() {
   if (!cant || cant < 1)     { el.innerHTML = alert_html('warn', 'Ingresá una cantidad válida.'); return; }
   try {
     const [info, calc] = await Promise.all([
-      api(`/pallets?capacidad=${cap}&proveedor=${prov}&modelo=${mod}`),
+      api(`/pallets?capacidad=${encodeURIComponent(cap)}&proveedor=${encodeURIComponent(prov)}&modelo=${encodeURIComponent(mod)}`),
       api('/calcular-pallets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -965,12 +1058,12 @@ function renderPalletInfo(d, cap, prov, mod) {
     <div class="flex justify-between mb-12 flex-wrap gap-8">
       <div>
         <div class="fw-600" style="font-size:15px">${cap.toUpperCase()} · ${prov.toUpperCase()} · ${mod.toUpperCase()}</div>
-        <div class="text-hint mt-4">SKU: <code>${d.sku}</code></div>
+        <div class="text-hint mt-4">SKU: <code>${htmlEscape(d.sku)}</code></div>
       </div>
       <div class="flex gap-8 flex-wrap">
         <span class="badge badge-blue">${cap.toUpperCase()}</span>
-        <span class="badge badge-gray">${d.orientacion}</span>
-        <span class="badge badge-gray">${d.embalaje}</span>
+        <span class="badge badge-gray">${htmlEscape(d.orientacion)}</span>
+        <span class="badge badge-gray">${htmlEscape(d.embalaje)}</span>
       </div>
     </div>
     <div class="grid-2 gap-12">
@@ -985,7 +1078,7 @@ function renderPalletInfo(d, cap, prov, mod) {
           <div class="kv-row"><span>Peso máx. pallet</span><span>${d.peso_max_pallet_kg} kg</span></div>
           <div class="kv-row"><span>Apilable hasta</span><span>${d.apilable_hasta} pallet${d.apilable_hasta !== 1 ? 's' : ''}</span></div>
         </div>
-        ${d.notas && d.notas !== 'nan' ? `<div style="margin-top:12px;padding:9px 12px;border-left:2px solid var(--accent-lt);background:var(--accent-lt);border-radius:0 var(--r) var(--r) 0;font-size:12px;color:var(--accent-dk)">${d.notas}</div>` : ''}
+        ${d.notas && d.notas !== 'nan' ? `<div style="margin-top:12px;padding:9px 12px;border-left:2px solid var(--accent-lt);background:var(--accent-lt);border-radius:0 var(--r) var(--r) 0;font-size:12px;color:var(--accent-dk)">${htmlEscape(d.notas)}</div>` : ''}
       </div>
       <div>
         <div class="card-title">Vista de capas</div>
@@ -1019,9 +1112,9 @@ function renderCalcResult(info, c) {
           <div class="kv-row"><span>Capas</span><span>${info.capas}</span></div>
           <div class="kv-row"><span>Cajas por capa</span><span>${info.cajas_por_capa}</span></div>
           <div class="kv-row"><span>Dimensiones</span><span>${info.dim_pallet_mm[0]}×${info.dim_pallet_mm[1]}×${info.dim_pallet_mm[2]} mm</span></div>
-          <div class="kv-row"><span>Orientación</span><span>${info.orientacion}</span></div>
-          <div class="kv-row"><span>Embalaje</span><span>${info.embalaje}</span></div>
-          <div class="kv-row"><span>SKU</span><span><code>${info.sku}</code></span></div>
+          <div class="kv-row"><span>Orientación</span><span>${htmlEscape(info.orientacion)}</span></div>
+          <div class="kv-row"><span>Embalaje</span><span>${htmlEscape(info.embalaje)}</span></div>
+          <div class="kv-row"><span>SKU</span><span><code>${htmlEscape(info.sku)}</code></span></div>
         </div>
       </div>
       <div>
@@ -1039,7 +1132,7 @@ function renderCalcResult(info, c) {
 
 async function reloadKB() {
   try {
-    await api('/reload', { method: 'POST' });
+    await apiAdmin('/reload', 'POST');
     setGlobalStatus('KB recargada', 'ok');
     setTimeout(() => setGlobalStatus('Conectado', 'ok'), 2000);
   } catch(e) { setGlobalStatus('Error reload', 'err'); }
@@ -1050,14 +1143,54 @@ async function showFicha() {
   const { cap, prov, mod } = getSel('f');
   const el = document.getElementById('ficha-result');
   if (!cap || !prov || !mod) { el.innerHTML = alert_html('warn', 'Seleccioná los tres campos.'); return; }
+  const identity = activeModelForSelection('f');
+  if (!identity) { el.innerHTML = alert_html('err', 'El modelo no existe en el catálogo maestro.'); return; }
   try {
-    const [info, personal, layout] = await Promise.all([
-      api(`/pallets?capacidad=${cap}&proveedor=${prov}&modelo=${mod}`),
-      api(`/personal?capacidad=${cap}&proveedor=${prov}&modelo=${mod}`).catch(() => null),
-      api(`/layouts?capacidad=${encodeURIComponent(cap)}&proveedor=${encodeURIComponent(prov)}&modelo=${encodeURIComponent(mod)}`).catch(() => null),
-    ]);
-    el.innerHTML = renderFicha(info, personal, cap, prov, mod, layout);
+    const summary = await api(`/modelos/${encodeURIComponent(identity.model_id)}/resumen`);
+    el.innerHTML = renderModelSummary(summary);
   } catch(e) { el.innerHTML = alert_html('err', e.message); }
+}
+
+function renderModelSummary(summary) {
+  const identity = summary.identity;
+  const pallet = summary.palletizacion;
+  const personal = summary.personal;
+  const tiempos = summary.tiempos;
+  const specs = summary.specs || {};
+  const specLines = Object.keys(specs);
+  const firstSpec = specLines.length ? specs[specLines[0]] : null;
+  const totalPeople = personal?.tramos?.reduce((sum, tramo) => sum + (Number(tramo.personas) || 0), 0);
+  const criticalTime = tiempos?.tiempos?.length ? Math.max(...tiempos.tiempos) : null;
+  const statusLabels = {palletizacion:'Palletización', specs:'Especificaciones', personal:'Dotación', layout:'Layout', tiempos:'Tiempos'};
+  const statusBadges = Object.entries(summary.data_status).map(([key, value]) => {
+    const config = value === 'available' ? ['badge-green','✓ Disponible'] : value === 'warning' ? ['badge-warn','⚠ Advertencia'] : ['badge-gray','— Faltante'];
+    return `<div class="metric"><div class="metric-label">${statusLabels[key]}</div><span class="badge ${config[0]}">${config[1]}</span></div>`;
+  }).join('');
+  const metrics = [
+    pallet ? ['Unidades / pallet', pallet.unidades_por_pallet, 'unidades'] : null,
+    personal ? ['Dotación total', totalPeople, 'personas'] : null,
+    tiempos ? ['Ciclo límite', tiempos.limite, 'segundos'] : null,
+    criticalTime !== null ? ['Puesto crítico', criticalTime, 'segundos'] : null,
+    specLines.length ? ['Líneas', specLines.join(', '), `${specLines.length} configuración(es)`] : null,
+    firstSpec?.refrigerante ? ['Refrigerante', firstSpec.refrigerante, 'ficha técnica'] : null,
+  ].filter(Boolean).map(([label, value, unit]) => `<div class="metric"><div class="metric-label">${htmlEscape(label)}</div><div class="metric-value" style="font-size:20px">${htmlEscape(value)}</div><div class="metric-sub">${htmlEscape(unit)}</div></div>`).join('');
+
+  return `
+    <div class="card" style="border-left:3px solid var(--accent)">
+      <div class="flex justify-between flex-wrap gap-8">
+        <div>
+          <div class="card-title" style="margin-bottom:6px">Modelo activo · ${htmlEscape(identity.model_id)}</div>
+          <div class="fw-600" style="font-size:18px">${htmlEscape(identity.capacidad.toUpperCase())} · ${htmlEscape(identity.proveedor.toUpperCase())} · ${htmlEscape(identity.modelo.toUpperCase())}</div>
+          <div class="text-hint mt-4">SKU: <code>${htmlEscape(identity.sku_bgh || 'No registrado')}</code>${identity.pnb ? ` · PNB: <code>${htmlEscape(identity.pnb)}</code>` : ''}</div>
+        </div>
+      </div>
+      ${summary.warnings.map(message => alert_html('warn', htmlEscape(message))).join('')}
+      <hr>
+      <div class="card-title">Estado de información</div>
+      <div class="grid-auto mb-12">${statusBadges}</div>
+      <div class="card-title mt-20">Métricas disponibles</div>
+      <div class="grid-auto">${metrics || '<span class="text-muted">No hay métricas disponibles.</span>'}</div>
+    </div>`;
 }
 
 function renderFicha(info, per, cap, prov, mod, layout = null) {
@@ -1103,7 +1236,7 @@ function renderFicha(info, per, cap, prov, mod, layout = null) {
       return `
       <div style="display:grid;grid-template-columns:12px 1fr 50px 100px;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
         <span style="width:10px;height:10px;border-radius:50%;background:${col};display:inline-block"></span>
-        <span style="font-size:13px">${t.nombre}</span>
+        <span style="font-size:13px">${htmlEscape(t.nombre)}</span>
         <span style="font-size:14px;font-weight:600;text-align:center">${t.personas}</span>
         <div>
           <div class="progress"><div class="progress-fill" style="width:${pct}%;background:${col}"></div></div>
@@ -1117,12 +1250,12 @@ function renderFicha(info, per, cap, prov, mod, layout = null) {
   <div class="card" style="border-left:3px solid var(--accent)">
     <div class="flex justify-between mb-12 flex-wrap gap-8">
       <div>
-        <div class="fw-600" style="font-size:16px">${nombre}</div>
-        <div class="text-hint mt-4">SKU: <code>${info.sku}</code></div>
+        <div class="fw-600" style="font-size:16px">${htmlEscape(nombre)}</div>
+        <div class="text-hint mt-4">SKU: <code>${htmlEscape(info.sku)}</code></div>
       </div>
       <div class="flex gap-8 flex-wrap">
-        ${per?.ot  ? `<span class="badge badge-blue">${per.ot}</span>` : ''}
-        ${per?.pnb ? `<span class="badge badge-green">${per.pnb}</span>` : ''}
+        ${per?.ot  ? `<span class="badge badge-blue">${htmlEscape(per.ot)}</span>` : ''}
+        ${per?.pnb ? `<span class="badge badge-green">${htmlEscape(per.pnb)}</span>` : ''}
         <span class="badge badge-gray">${cap.toUpperCase()}</span>
       </div>
     </div>
@@ -1141,8 +1274,8 @@ function renderFicha(info, per, cap, prov, mod, layout = null) {
           <div class="kv-row"><span>Peso unitario</span><span>${info.peso_unitario_kg} kg</span></div>
           <div class="kv-row"><span>Peso máx.</span><span>${info.peso_max_pallet_kg} kg</span></div>
           <div class="kv-row"><span>Apilable hasta</span><span>${info.apilable_hasta} pallet${info.apilable_hasta !== 1 ? 's' : ''}</span></div>
-          <div class="kv-row"><span>Orientación</span><span>${info.orientacion}</span></div>
-          <div class="kv-row"><span>Embalaje</span><span>${info.embalaje}</span></div>
+          <div class="kv-row"><span>Orientación</span><span>${htmlEscape(info.orientacion)}</span></div>
+          <div class="kv-row"><span>Embalaje</span><span>${htmlEscape(info.embalaje)}</span></div>
         </div>
       </div>
       <div>
@@ -1168,7 +1301,7 @@ async function loadPersonal() {
   }
   PERSONAL_KEY = { cap, prov, mod };
   try {
-    const d = await api(`/personal?capacidad=${cap}&proveedor=${prov}&modelo=${mod}`);
+    const d = await api(`/personal?capacidad=${encodeURIComponent(cap)}&proveedor=${encodeURIComponent(prov)}&modelo=${encodeURIComponent(mod)}`);
     PERSONAL_DATA = d.tramos.map(t => ({ ...t }));
     PERSONAL_META = { nombre_modelo: d.nombre_modelo || '', ot: d.ot || '', pnb: d.pnb || '' };
     renderPersonal();
@@ -1189,15 +1322,15 @@ function renderPersonal() {
     <div class="grid-3 gap-12">
       <div class="field">
         <label>Nombre del modelo</label>
-        <input type="text" id="meta-nombre" value="${PERSONAL_META.nombre_modelo}" placeholder="Ej: Midea Inverter 12.000 BTU" oninput="PERSONAL_META.nombre_modelo=this.value" />
+        <input type="text" id="meta-nombre" value="${htmlEscape(PERSONAL_META.nombre_modelo)}" placeholder="Ej: Midea Inverter 12.000 BTU" oninput="PERSONAL_META.nombre_modelo=this.value" />
       </div>
       <div class="field">
         <label>Orden de trabajo (OT)</label>
-        <input type="text" id="meta-ot" value="${PERSONAL_META.ot}" placeholder="Ej: OT-2024-121" oninput="PERSONAL_META.ot=this.value" />
+        <input type="text" id="meta-ot" value="${htmlEscape(PERSONAL_META.ot)}" placeholder="Ej: OT-2024-121" oninput="PERSONAL_META.ot=this.value" />
       </div>
       <div class="field">
         <label>PNB</label>
-        <input type="text" id="meta-pnb" value="${PERSONAL_META.pnb}" placeholder="Ej: PNB-MD12-INV" oninput="PERSONAL_META.pnb=this.value" />
+        <input type="text" id="meta-pnb" value="${htmlEscape(PERSONAL_META.pnb)}" placeholder="Ej: PNB-MD12-INV" oninput="PERSONAL_META.pnb=this.value" />
       </div>
     </div>
   </div>`;
@@ -1217,7 +1350,7 @@ function renderPersonal() {
     <div class="metric">
       <div class="metric-label">Mayor sector</div>
       <div class="metric-value" id="pm-mayor">${PERSONAL_DATA.length ? PERSONAL_DATA[mayorIdx].personas : 0}</div>
-      <div class="metric-sub" id="pm-mayor-nom">${PERSONAL_DATA.length ? PERSONAL_DATA[mayorIdx].nombre : '—'}</div>
+      <div class="metric-sub" id="pm-mayor-nom">${PERSONAL_DATA.length ? htmlEscape(PERSONAL_DATA[mayorIdx].nombre) : '—'}</div>
     </div>
     <div class="metric">
       <div class="metric-label">Promedio</div>
@@ -1238,7 +1371,7 @@ function renderPersonal() {
       </div>
       <div style="display:flex;align-items:center;gap:8px">
         <span style="width:10px;height:10px;border-radius:50%;background:${col};flex-shrink:0"></span>
-        <input class="tramo-nombre" value="${t.nombre}" oninput="PERSONAL_DATA[${i}].nombre=this.value" />
+        <input class="tramo-nombre" value="${htmlEscape(t.nombre)}" oninput="PERSONAL_DATA[${i}].nombre=this.value" />
       </div>
       <input class="tramo-cant" type="number" min="0" max="999" value="${t.personas}"
         oninput="PERSONAL_DATA[${i}].personas=Math.max(0,parseInt(this.value)||0);refreshTramosMetrics()" />
@@ -1338,15 +1471,11 @@ async function savePersonal() {
   if (!PERSONAL_KEY) return;
   const { cap, prov, mod } = PERSONAL_KEY;
   try {
-    await api(`/personal?capacidad=${cap}&proveedor=${prov}&modelo=${mod}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        nombre_modelo: PERSONAL_META.nombre_modelo,
-        ot:            PERSONAL_META.ot,
-        pnb:           PERSONAL_META.pnb,
-        tramos:        PERSONAL_DATA,
-      }),
+    await apiAdmin(`/personal?capacidad=${encodeURIComponent(cap)}&proveedor=${encodeURIComponent(prov)}&modelo=${encodeURIComponent(mod)}`, 'POST', {
+      nombre_modelo: PERSONAL_META.nombre_modelo,
+      ot: PERSONAL_META.ot,
+      pnb: PERSONAL_META.pnb,
+      tramos: PERSONAL_DATA,
     });
     const badge = document.getElementById('per-save-badge');
     if (badge) { badge.classList.remove('hidden'); setTimeout(() => badge.classList.add('hidden'), 2500); }
@@ -1360,7 +1489,7 @@ async function showSpecs() {
   const el = document.getElementById('specs-result');
   if (!cap || !prov || !mod || !lin) { el.innerHTML = alert_html('warn', 'Completá todos los campos.'); return; }
   try {
-    const d = await api(`/specs?capacidad=${cap}&proveedor=${prov}&modelo=${mod}&linea=${lin}`);
+    const d = await api(`/specs?capacidad=${encodeURIComponent(cap)}&proveedor=${encodeURIComponent(prov)}&modelo=${encodeURIComponent(mod)}&linea=${encodeURIComponent(lin)}`);
     el.innerHTML = renderSpecs(d, cap, prov, mod, lin);
   } catch(e) { el.innerHTML = alert_html('err', e.message); }
 }
@@ -1370,7 +1499,7 @@ function renderSpecs(d, cap, prov, mod, lin) {
   <div class="card">
     <div class="flex justify-between mb-12 flex-wrap gap-8">
       <div class="fw-600" style="font-size:15px">${cap.toUpperCase()} · ${prov.toUpperCase()} · ${mod.toUpperCase()} — <span class="badge badge-blue">${lin.toUpperCase()}</span></div>
-      <span class="badge badge-gray">${d.refrigerante}</span>
+      <span class="badge badge-gray">${htmlEscape(d.refrigerante)}</span>
     </div>
     <div class="grid-2 gap-12">
       <div>
@@ -1379,7 +1508,7 @@ function renderSpecs(d, cap, prov, mod, lin) {
           <div class="kv-row"><span>BTUs</span><span>${parseInt(d.btus).toLocaleString()}</span></div>
           <div class="kv-row"><span>Consumo</span><span>${d.consumo_w} W</span></div>
           <div class="kv-row"><span>Eficiencia SEER</span><span>${d.eficiencia_seer}</span></div>
-          <div class="kv-row"><span>Refrigerante</span><span>${d.refrigerante}</span></div>
+          <div class="kv-row"><span>Refrigerante</span><span>${htmlEscape(d.refrigerante)}</span></div>
         </div>
       </div>
       <div>
@@ -1392,13 +1521,13 @@ function renderSpecs(d, cap, prov, mod, lin) {
         </div>
       </div>
     </div>
-    ${d.nota ? `<div style="margin-top:12px;padding:9px 12px;border-left:2px solid var(--accent-lt);background:var(--accent-lt);border-radius:0 var(--r) var(--r) 0;font-size:12px;color:var(--accent-dk)">${d.nota}</div>` : ''}
+    ${d.nota ? `<div style="margin-top:12px;padding:9px 12px;border-left:2px solid var(--accent-lt);background:var(--accent-lt);border-radius:0 var(--r) var(--r) 0;font-size:12px;color:var(--accent-dk)">${htmlEscape(d.nota)}</div>` : ''}
   </div>`;
 }
 
 async function reloadSpecs() {
   try {
-    await api('/reload-specs', { method: 'POST' });
+    await apiAdmin('/reload-specs', 'POST');
     setGlobalStatus('Specs recargadas', 'ok');
     setTimeout(() => setGlobalStatus('Conectado', 'ok'), 2000);
   } catch(e) { setGlobalStatus('Error', 'err'); }
@@ -1554,11 +1683,7 @@ async function saveLayoutLink() {
   }
 
   try {
-    await api(`/layouts?capacidad=${encodeURIComponent(sel.cap)}&proveedor=${encodeURIComponent(sel.prov)}&modelo=${encodeURIComponent(sel.mod)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    await apiAdmin(`/layouts?capacidad=${encodeURIComponent(sel.cap)}&proveedor=${encodeURIComponent(sel.prov)}&modelo=${encodeURIComponent(sel.mod)}`, 'PUT', body);
     setGlobalStatus('Layout guardado', 'ok');
     showLayout();
   } catch(e) {
@@ -1571,9 +1696,7 @@ async function deleteLayoutLink() {
   if (!sel) return;
 
   try {
-    await api(`/layouts?capacidad=${encodeURIComponent(sel.cap)}&proveedor=${encodeURIComponent(sel.prov)}&modelo=${encodeURIComponent(sel.mod)}`, {
-      method: 'DELETE',
-    });
+    await apiAdmin(`/layouts?capacidad=${encodeURIComponent(sel.cap)}&proveedor=${encodeURIComponent(sel.prov)}&modelo=${encodeURIComponent(sel.mod)}`, 'DELETE');
     setGlobalStatus('Layout eliminado', 'ok');
     document.getElementById('layout-result').innerHTML = renderLayoutEditor({}, sel.cap, sel.prov, sel.mod, false);
   } catch(e) {
@@ -1591,14 +1714,15 @@ function copyLayoutLink() {
 
 async function reloadLayouts() {
   try {
-    await api('/reload-layouts', { method: 'POST' });
+    await apiAdmin('/reload-layouts', 'POST');
     document.getElementById('layout-result').innerHTML = alert_html('ok', 'Layouts recargados correctamente.');
   } catch(e) { document.getElementById('layout-result').innerHTML = alert_html('err', e.message); }
 }
 
 /* ── Admin ────────────────────────────── */
-function getAdminKey() { return localStorage.getItem('ADMIN_API_KEY') || ''; }
-function setAdminKey(k) { k ? localStorage.setItem('ADMIN_API_KEY', k) : localStorage.removeItem('ADMIN_API_KEY'); }
+let ADMIN_API_KEY = '';
+function getAdminKey() { return ADMIN_API_KEY; }
+function setAdminKey(k) { ADMIN_API_KEY = k || ''; }
 
 function setAdminStatus(text, kind = '') {
   const el = document.getElementById('admin-status');
@@ -1606,12 +1730,22 @@ function setAdminStatus(text, kind = '') {
   el.innerHTML = `<span class="dot"></span>${text}`;
 }
 
-function adminLogin() {
+async function adminLogin() {
   const key = document.getElementById('adminKey').value.trim();
   if (!key) { alert('Ingresá una API Key.'); return; }
   setAdminKey(key);
-  document.getElementById('admin-panel').classList.remove('hidden');
-  setAdminStatus('Conectado', 'ok');
+  setAdminStatus('Verificando…');
+  try {
+    await apiAdmin('/admin/verify');
+    document.getElementById('admin-panel').classList.remove('hidden');
+    document.getElementById('adminKey').value = '';
+    setAdminStatus('Conectado', 'ok');
+  } catch (e) {
+    setAdminKey('');
+    document.getElementById('admin-panel').classList.add('hidden');
+    setAdminStatus('No autorizado', 'err');
+    alert(e.message);
+  }
 }
 
 function adminLogout() {
@@ -1631,10 +1765,7 @@ function switchAdminTab(which) {
 async function apiAdmin(path, method = 'GET', body = null) {
   const headers = { 'X-API-Key': getAdminKey() };
   if (body && method !== 'GET') headers['Content-Type'] = 'application/json';
-  const r = await fetch(base() + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
-  if (!r.ok) throw new Error(r.status + ' — ' + await r.text());
-  const ct = r.headers.get('content-type') || '';
-  return ct.includes('json') ? r.json() : r.text();
+  return api(path, { method, headers, body: body ? JSON.stringify(body) : undefined });
 }
 
 /* ── CSV ↔ Grid ─────────────────────── */
@@ -2002,7 +2133,7 @@ async function loadTiempos() {
   const alertEl = document.getElementById('tiempos-alert');
   if (!cap || !prov || !mod) { alertEl.innerHTML = alert_html('warn', 'Seleccioná capacidad, proveedor y modelo.'); return; }
   try {
-    const d = await api(`/tiempos?capacidad=${cap}&proveedor=${prov}&modelo=${mod}`);
+    const d = await api(`/tiempos?capacidad=${encodeURIComponent(cap)}&proveedor=${encodeURIComponent(prov)}&modelo=${encodeURIComponent(mod)}`);
     document.getElementById('t-titulo').value = d.titulo || 'Distribución de tiempos por puesto';
     document.getElementById('t-limite').value = d.limite || 18;
     document.getElementById('t-tiempos').value = (d.tiempos || []).join(', ');
@@ -2020,11 +2151,7 @@ async function saveTiempos() {
   if (!form.cap || !form.prov || !form.mod) { alertEl.innerHTML = alert_html('warn', 'Seleccioná capacidad, proveedor y modelo.'); return; }
   if (!form.tiempos.length) { alertEl.innerHTML = alert_html('warn', 'Ingresá al menos un tiempo válido.'); return; }
   try {
-    await api(`/tiempos?capacidad=${form.cap}&proveedor=${form.prov}&modelo=${form.mod}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ titulo: form.titulo, limite: form.limite, tiempos: form.tiempos }),
-    });
+    await apiAdmin(`/tiempos?capacidad=${encodeURIComponent(form.cap)}&proveedor=${encodeURIComponent(form.prov)}&modelo=${encodeURIComponent(form.mod)}`, 'PUT', { titulo: form.titulo, limite: form.limite, tiempos: form.tiempos });
     generarGraficoTiempos(form);
     alertEl.innerHTML = alert_html('ok', 'Tiempos guardados correctamente.');
   } catch(e) { alertEl.innerHTML = alert_html('err', e.message); }
@@ -2035,7 +2162,7 @@ async function deleteTiempos() {
   const alertEl = document.getElementById('tiempos-alert');
   if (!cap || !prov || !mod) { alertEl.innerHTML = alert_html('warn', 'Seleccioná capacidad, proveedor y modelo.'); return; }
   try {
-    await api(`/tiempos?capacidad=${cap}&proveedor=${prov}&modelo=${mod}`, { method: 'DELETE' });
+    await apiAdmin(`/tiempos?capacidad=${encodeURIComponent(cap)}&proveedor=${encodeURIComponent(prov)}&modelo=${encodeURIComponent(mod)}`, 'DELETE');
     document.getElementById('t-tiempos').value = '';
     renderTiemposMetrics([], parseFloat(document.getElementById('t-limite').value) || 18);
     if (chartTiempos) { chartTiempos.destroy(); chartTiempos = null; }
@@ -2046,16 +2173,12 @@ async function deleteTiempos() {
 async function reloadTiempos() {
   const alertEl = document.getElementById('tiempos-alert');
   try {
-    const d = await api('/reload-tiempos', { method: 'POST' });
+    const d = await apiAdmin('/reload-tiempos', 'POST');
     alertEl.innerHTML = alert_html('ok', `Tiempos recargados. Registros: ${d.rows}`);
   } catch(e) { alertEl.innerHTML = alert_html('err', e.message); }
 }
 
 /* ── Init ─────────────────────────────── */
-if (getAdminKey()) {
-  document.getElementById('admin-panel').classList.remove('hidden');
-  setAdminStatus('Conectado', 'ok');
-}
 loadCatalogo();
 loadLineas();
 </script>
