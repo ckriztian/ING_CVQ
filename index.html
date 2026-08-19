@@ -55,6 +55,11 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
         Tiempos
       </button>
+      <div class="nav-group-label">Herramientas</div>
+      <button class="nav-item" data-page="compare" onclick="openComparator()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 7h14l-3-3"/><path d="m21 7-3 3"/><path d="M17 17H3l3 3"/><path d="m3 17 3-3"/></svg>
+        Comparar modelos
+      </button>
       <div class="nav-group-label">Administración</div>
       <button class="nav-item" data-page="admin" onclick="switchPage('admin', this)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 1 0 21 12"/><path d="M12 12l9-9"/></svg>
@@ -483,11 +488,33 @@
       </div>
     </div>
 
+    <!-- ══ PAGE: Comparador ══ -->
+    <div class="page" id="page-compare">
+      <div style="padding:28px">
+        <div class="page-title">Comparación técnica de modelos</div>
+        <div class="page-sub">Compará recursos, proceso y producto usando las fichas consolidadas del catálogo maestro.</div>
+        <div class="card mb-12">
+          <div class="compare-selector-grid">
+            <div class="field"><label for="compare-a">Modelo A</label><select id="compare-a" onchange="onCompareSelectionChange()"></select><span class="text-hint">El Modelo Activo se preselecciona como referencia.</span></div>
+            <button class="btn compare-swap" onclick="swapComparedModels()" aria-label="Intercambiar modelos">⇄ Intercambiar</button>
+            <div class="field"><label for="compare-b">Modelo B</label><select id="compare-b" onchange="onCompareSelectionChange()"></select><span class="text-hint">Los deltas se calculan como B − A.</span></div>
+          </div>
+          <div class="mt-16 flex justify-between flex-wrap gap-8">
+            <label class="filter-check"><input type="checkbox" id="compare-only-diffs" onchange="applyComparisonFilter()"> Mostrar solo diferencias</label>
+            <div class="flex gap-8"><button class="btn" onclick="clearComparison()">Nueva comparación</button><button class="btn btn-primary" onclick="compareModels()">Comparar</button></div>
+          </div>
+          <div id="compare-message" class="mt-12" aria-live="polite"></div>
+        </div>
+        <div id="compare-results"></div>
+      </div>
+    </div>
+
   </div><!-- /main -->
 </div><!-- /app-shell -->
 
 <!-- Chart.js para gráficos de tiempos -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="comparison.js"></script>
 
 <!-- ══════════ SCRIPTS ══════════ -->
 <script>
@@ -500,14 +527,17 @@ const PAGE_TITLES = {
   specs: 'Especificaciones técnicas',
   layouts: 'Layouts por modelo',
   tiempos: 'Tiempos por puesto',
+  compare: 'Comparar modelos',
   admin: 'Administración',
 };
 function switchPage(id, btn) {
+  if (id !== 'personal' && PERSONAL_DIRTY && !confirmDiscardPersonalChanges()) return false;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('page-' + id).classList.add('active');
   btn.classList.add('active');
   document.getElementById('topbar-title').textContent = PAGE_TITLES[id] || id;
+  return true;
 }
 
 /* ── API helper ─────────────────────────── */
@@ -622,7 +652,7 @@ function onModelChange(pfx) {
   if (!cap || !prov || !mod) return;
   const identity = findMasterModel(cap, prov, mod);
   if (identity) {
-    setActiveModel(identity);
+    if (!setActiveModel(identity)) { if (activeModel) syncSelections(activeModel); return; }
     if (pfx === 'f' && document.getElementById('page-ficha').classList.contains('active')) showFicha();
   }
 }
@@ -645,6 +675,7 @@ function syncSelections(identity) {
 }
 
 function setActiveModel(identity, persist = true) {
+  if (PERSONAL_DIRTY && activeModel?.model_id !== identity.model_id && !confirmDiscardPersonalChanges()) return false;
   activeModel = identity;
   syncSelections(identity);
   const label = `${identity.capacidad.toUpperCase()} | ${identity.proveedor.toUpperCase()} | ${identity.modelo.toUpperCase()}`;
@@ -653,6 +684,7 @@ function setActiveModel(identity, persist = true) {
   document.getElementById('change-model-btn').classList.remove('hidden');
   if (persist) sessionStorage.setItem('ACTIVE_MODEL_ID', identity.model_id);
   renderHomeActiveModel();
+  return true;
 }
 
 function restoreActiveModel() {
@@ -664,6 +696,7 @@ function restoreActiveModel() {
 }
 
 function changeActiveModel() {
+  if (PERSONAL_DIRTY && !confirmDiscardPersonalChanges()) return;
   activeModel = null;
   sessionStorage.removeItem('ACTIVE_MODEL_ID');
   document.getElementById('active-model-text').textContent = 'Sin modelo activo';
@@ -674,10 +707,18 @@ function changeActiveModel() {
   document.getElementById('h-cap').focus();
 }
 
+function confirmDiscardPersonalChanges() {
+  if (!PERSONAL_DIRTY) return true;
+  if (!confirm('Hay cambios de dotación sin guardar. ¿Querés descartarlos?')) return false;
+  PERSONAL_DIRTY = false;
+  PERSONAL_EDITING = false;
+  return true;
+}
+
 function activeModelForSelection(pfx) {
   const selection = getSel(pfx);
   const identity = findMasterModel(selection.cap, selection.prov, selection.mod);
-  if (identity && (!activeModel || activeModel.model_id !== identity.model_id)) setActiveModel(identity);
+  if (identity && (!activeModel || activeModel.model_id !== identity.model_id) && !setActiveModel(identity)) return activeModel;
   return identity;
 }
 
@@ -688,7 +729,7 @@ function openActivePage(page) {
     return;
   }
   const button = document.querySelector(`[data-page="${page}"]`);
-  switchPage(page, button);
+  if (!switchPage(page, button)) return;
   const loaders = {ficha: showFicha, specs: showSpecs, pallets: showPallet, personal: loadPersonal, layouts: showLayout, tiempos: loadTiempos};
   if (loaders[page]) loaders[page]();
 }
@@ -1058,6 +1099,8 @@ function renderFicha(info, per, cap, prov, mod, layout = null) {
 let PERSONAL_DATA = [];  // tramos actuales editando
 let PERSONAL_META = { nombre_modelo: '', ot: '', pnb: '' };
 let PERSONAL_KEY  = null;
+let PERSONAL_EDITING = false;
+let PERSONAL_DIRTY = false;
 
 const TRAMO_COLORS = ['#2563EB','#16A34A','#D97706','#DC2626','#7C3AED','#0891B2','#DB2777','#65A30D','#92400E','#1D4ED8'];
 
@@ -1072,15 +1115,61 @@ async function loadPersonal() {
     const d = await api(`/personal?capacidad=${encodeURIComponent(cap)}&proveedor=${encodeURIComponent(prov)}&modelo=${encodeURIComponent(mod)}`);
     PERSONAL_DATA = d.tramos.map(t => ({ ...t }));
     PERSONAL_META = { nombre_modelo: d.nombre_modelo || '', ot: d.ot || '', pnb: d.pnb || '' };
-    renderPersonal();
+    PERSONAL_EDITING = false;
+    PERSONAL_DIRTY = false;
+    renderPersonalRead();
   } catch(e) {
     document.getElementById('personal-result').innerHTML = e.status === 404
-      ? `<div class="card empty-state"><strong>Sin datos de dotación</strong><span>No hay una dotación registrada para este modelo.</span></div>`
+      ? `<div class="card empty-state"><strong>Sin datos de dotación</strong><span>No hay una dotación registrada para este modelo.</span>${getAdminKey() ? '<button class="btn btn-primary" onclick="createPersonal()">Crear dotación</button>' : ''}</div>`
       : alert_html('err', e.message);
   }
 }
 
-function renderPersonal() {
+function renderPersonalRead() {
+  if (!PERSONAL_KEY) return;
+  const total = PERSONAL_DATA.reduce((sum,item)=>sum+Number(item.personas),0);
+  const max = PERSONAL_DATA.length ? PERSONAL_DATA.reduce((a,b)=>a.personas>=b.personas?a:b) : null;
+  const rows = PERSONAL_DATA.map(item => {
+    const percentage = total ? (Number(item.personas)/total)*100 : 0;
+    return `<tr><th>${htmlEscape(item.nombre)}</th><td class="mono">${item.personas}</td><td><div class="staff-share"><div class="progress"><div class="progress-fill" style="width:${percentage}%"></div></div><span>${percentage.toFixed(1)}%</span></div></td></tr>`;
+  }).join('');
+  document.getElementById('personal-result').innerHTML = `
+    <div id="personal-feedback" aria-live="polite"></div>
+    <div class="grid-4 mb-12">
+      <div class="metric accent"><div class="metric-value">${total}</div><div class="metric-label mt-4">Dotación total</div><div class="metric-sub">personas</div></div>
+      <div class="metric"><div class="metric-value">${PERSONAL_DATA.length}</div><div class="metric-label mt-4">Sectores</div></div>
+      <div class="metric"><div class="metric-value">${max ? max.personas : '—'}</div><div class="metric-label mt-4">Mayor dotación</div><div class="metric-sub">${max ? htmlEscape(max.nombre) : 'Sin datos'}</div></div>
+      <div class="metric"><div class="metric-value">${PERSONAL_DATA.length ? (total/PERSONAL_DATA.length).toFixed(1) : '—'}</div><div class="metric-label mt-4">Promedio por sector</div></div>
+    </div>
+    <div class="card"><div class="flex justify-between flex-wrap gap-8 mb-12"><div><div class="card-title" style="margin-bottom:4px">Dotación del modelo</div><div class="text-hint">Vista de consulta · ${PERSONAL_KEY.cap.toUpperCase()} / ${PERSONAL_KEY.prov.toUpperCase()} / ${PERSONAL_KEY.mod.toUpperCase()}</div></div>${getAdminKey() ? '<button class="btn" onclick="enterPersonalEdit()">Editar dotación</button>' : ''}</div>
+      <div class="table-scroll"><table class="technical-table staff-table"><thead><tr><th>Sector / proceso</th><th>Personas</th><th>Participación</th></tr></thead><tbody>${rows}<tr class="compare-total"><th>TOTAL</th><td>${total}</td><td>100%</td></tr></tbody></table></div>
+    </div>`;
+}
+
+function enterPersonalEdit() {
+  if (!getAdminKey()) return;
+  PERSONAL_EDITING = true;
+  PERSONAL_DIRTY = false;
+  renderPersonalEditor();
+}
+
+function createPersonal() {
+  if (!getAdminKey() || !PERSONAL_KEY) return;
+  PERSONAL_DATA = [];
+  PERSONAL_META = {nombre_modelo:'',ot:'',pnb:''};
+  enterPersonalEdit();
+}
+
+function markPersonalDirty() { if (PERSONAL_EDITING) PERSONAL_DIRTY = true; }
+
+async function cancelPersonalEdit() {
+  if (PERSONAL_DIRTY && !confirm('Hay cambios de dotación sin guardar. ¿Querés descartarlos?')) return;
+  PERSONAL_DIRTY = false;
+  PERSONAL_EDITING = false;
+  await loadPersonal();
+}
+
+function renderPersonalEditor() {
   if (!PERSONAL_KEY) return;
   const { cap, prov, mod } = PERSONAL_KEY;
   const total = PERSONAL_DATA.reduce((s, t) => s + Math.max(0, parseInt(t.personas) || 0), 0);
@@ -1092,15 +1181,15 @@ function renderPersonal() {
     <div class="grid-3 gap-12">
       <div class="field">
         <label>Nombre del modelo</label>
-        <input type="text" id="meta-nombre" value="${htmlEscape(PERSONAL_META.nombre_modelo)}" placeholder="Ej: Midea Inverter 12.000 BTU" oninput="PERSONAL_META.nombre_modelo=this.value" />
+        <input type="text" id="meta-nombre" value="${htmlEscape(PERSONAL_META.nombre_modelo)}" placeholder="Ej: Midea Inverter 12.000 BTU" oninput="PERSONAL_META.nombre_modelo=this.value;markPersonalDirty()" />
       </div>
       <div class="field">
         <label>Orden de trabajo (OT)</label>
-        <input type="text" id="meta-ot" value="${htmlEscape(PERSONAL_META.ot)}" placeholder="Ej: OT-2024-121" oninput="PERSONAL_META.ot=this.value" />
+        <input type="text" id="meta-ot" value="${htmlEscape(PERSONAL_META.ot)}" placeholder="Ej: OT-2024-121" oninput="PERSONAL_META.ot=this.value;markPersonalDirty()" />
       </div>
       <div class="field">
         <label>PNB</label>
-        <input type="text" id="meta-pnb" value="${htmlEscape(PERSONAL_META.pnb)}" placeholder="Ej: PNB-MD12-INV" oninput="PERSONAL_META.pnb=this.value" />
+        <input type="text" id="meta-pnb" value="${htmlEscape(PERSONAL_META.pnb)}" placeholder="Ej: PNB-MD12-INV" oninput="PERSONAL_META.pnb=this.value;markPersonalDirty()" />
       </div>
     </div>
   </div>`;
@@ -1141,10 +1230,10 @@ function renderPersonal() {
       </div>
       <div style="display:flex;align-items:center;gap:8px">
         <span style="width:10px;height:10px;border-radius:50%;background:${col};flex-shrink:0"></span>
-        <input class="tramo-nombre" value="${htmlEscape(t.nombre)}" oninput="PERSONAL_DATA[${i}].nombre=this.value" />
+        <input class="tramo-nombre" value="${htmlEscape(t.nombre)}" oninput="PERSONAL_DATA[${i}].nombre=this.value;markPersonalDirty()" />
       </div>
       <input class="tramo-cant" type="number" min="0" max="999" value="${t.personas}"
-        oninput="PERSONAL_DATA[${i}].personas=Math.max(0,parseInt(this.value)||0);refreshTramosMetrics()" />
+        oninput="PERSONAL_DATA[${i}].personas=this.valueAsNumber;markPersonalDirty();refreshTramosMetrics()" />
       <div>
         <div class="progress" style="margin-bottom:3px">
           <div class="progress-fill" id="pbar-${i}" style="width:${pct}%;background:${col}"></div>
@@ -1158,6 +1247,7 @@ function renderPersonal() {
   }).join('');
 
   const editorHtml = `
+  <div class="alert alert-warn"><strong>MODO EDICIÓN</strong><span>Los cambios no se aplican hasta guardar.</span></div>
   <div class="card">
     <div class="flex justify-between mb-12 flex-wrap gap-8">
       <div class="card-title" style="margin-bottom:0">
@@ -1165,7 +1255,7 @@ function renderPersonal() {
         Distribución por sector — ${cap.toUpperCase()} / ${prov.toUpperCase()} / ${mod.toUpperCase()}
       </div>
       <div class="flex gap-8 flex-wrap">
-        <span id="per-save-badge" class="badge badge-green hidden">✓ Guardado</span>
+        <button class="btn" onclick="cancelPersonalEdit()">Cancelar</button>
         <button class="btn btn-ok" onclick="savePersonal()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
           Guardar cambios
@@ -1219,26 +1309,33 @@ function moveTramo(i, dir) {
   const j = i + dir;
   if (j < 0 || j >= PERSONAL_DATA.length) return;
   [PERSONAL_DATA[i], PERSONAL_DATA[j]] = [PERSONAL_DATA[j], PERSONAL_DATA[i]];
-  renderPersonal();
+  markPersonalDirty();
+  renderPersonalEditor();
 }
 
 function deleteTramo(i) {
   PERSONAL_DATA.splice(i, 1);
-  renderPersonal();
+  markPersonalDirty();
+  renderPersonalEditor();
 }
 
 function addTramo() {
   const nombre = (document.getElementById('new-tramo-nombre').value || '').trim();
-  const personas = Math.max(1, parseInt(document.getElementById('new-tramo-cant').value) || 1);
+  const personas = Number(document.getElementById('new-tramo-cant').value);
   if (!nombre) { document.getElementById('new-tramo-nombre').focus(); return; }
+  if (!Number.isInteger(personas) || personas < 0) { alert('Ingresá una cantidad de personas válida (0 o mayor).'); return; }
+  if (PERSONAL_DATA.some(item => item.nombre.trim().toLowerCase() === nombre.toLowerCase())) { alert('Ya existe un sector con ese nombre exacto.'); return; }
   PERSONAL_DATA.push({ nombre, personas });
   document.getElementById('new-tramo-nombre').value = '';
   document.getElementById('new-tramo-cant').value = '1';
-  renderPersonal();
+  markPersonalDirty();
+  renderPersonalEditor();
 }
 
 async function savePersonal() {
-  if (!PERSONAL_KEY) return;
+  if (!PERSONAL_KEY || !getAdminKey()) return;
+  const validation = ComparisonEngine.validatePersonnelRows(PERSONAL_DATA);
+  if (!validation.valid) { alert(validation.error); return; }
   const { cap, prov, mod } = PERSONAL_KEY;
   try {
     await apiAdmin(`/personal?capacidad=${encodeURIComponent(cap)}&proveedor=${encodeURIComponent(prov)}&modelo=${encodeURIComponent(mod)}`, 'POST', {
@@ -1247,8 +1344,11 @@ async function savePersonal() {
       pnb: PERSONAL_META.pnb,
       tramos: PERSONAL_DATA,
     });
-    const badge = document.getElementById('per-save-badge');
-    if (badge) { badge.classList.remove('hidden'); setTimeout(() => badge.classList.add('hidden'), 2500); }
+    PERSONAL_DIRTY = false;
+    PERSONAL_EDITING = false;
+    await loadPersonal();
+    const feedback = document.getElementById('personal-feedback');
+    if (feedback) feedback.innerHTML = alert_html('ok', 'Dotación actualizada correctamente.');
   } catch(e) { alert('Error al guardar: ' + e.message); }
 }
 
@@ -1532,6 +1632,7 @@ async function adminLogin() {
     document.getElementById('adminKey').value = '';
     setAdminStatus('Conectado', 'ok');
     loadIntegrityPanel();
+    if (document.getElementById('page-personal').classList.contains('active')) loadPersonal();
   } catch (e) {
     setAdminKey('');
     document.getElementById('admin-panel').classList.add('hidden');
@@ -1564,10 +1665,12 @@ async function loadIntegrityPanel() {
 }
 
 function adminLogout() {
+  if (PERSONAL_DIRTY && !confirmDiscardPersonalChanges()) return;
   setAdminKey('');
   document.getElementById('admin-panel').classList.add('hidden');
   clearGrid('pallet'); clearGrid('specs');
   setAdminStatus('Desconectado');
+  if (document.getElementById('page-personal').classList.contains('active')) loadPersonal();
 }
 
 function switchAdminTab(which) {
@@ -1827,6 +1930,173 @@ function loadSpecsText() { loadSpecsGrid(); }
 function saveSpecsText() { saveSpecsGrid(); }
 function exportCsv() {}
 function importFile() {}
+
+// ================================
+// COMPARADOR DE MODELOS
+// ================================
+let COMPARE_SUMMARIES = null;
+
+function comparisonOption(item) {
+  return `${item.capacidad.toUpperCase()} · ${item.proveedor.toUpperCase()} · ${item.modelo.toUpperCase()} — ${item.sku_bgh || 'sin SKU'}`;
+}
+
+function populateComparisonSelectors() {
+  const options = '<option value="">— Seleccionar modelo —</option>' + MASTER_MODELS.map(item => `<option value="${item.model_id}">${htmlEscape(comparisonOption(item))}</option>`).join('');
+  ['compare-a','compare-b'].forEach(id => {
+    const select = document.getElementById(id);
+    const current = select.value;
+    select.innerHTML = options;
+    if (MASTER_MODELS.some(item => item.model_id === current)) select.value = current;
+  });
+}
+
+function openComparator() {
+  if (!switchPage('compare', document.querySelector('[data-page="compare"]'))) return;
+  populateComparisonSelectors();
+  if (activeModel && !document.getElementById('compare-a').value) document.getElementById('compare-a').value = activeModel.model_id;
+  document.getElementById('compare-message').innerHTML = '';
+}
+
+function onCompareSelectionChange() {
+  document.getElementById('compare-message').innerHTML = '';
+}
+
+function clearComparison() {
+  document.getElementById('compare-a').value = activeModel?.model_id || '';
+  document.getElementById('compare-b').value = '';
+  document.getElementById('compare-results').innerHTML = '';
+  document.getElementById('compare-message').innerHTML = '';
+  document.getElementById('compare-only-diffs').checked = false;
+  COMPARE_SUMMARIES = null;
+}
+
+async function swapComparedModels() {
+  const a = document.getElementById('compare-a'), b = document.getElementById('compare-b');
+  [a.value, b.value] = [b.value, a.value];
+  if (a.value && b.value) await compareModels();
+}
+
+async function compareModels() {
+  const idA = document.getElementById('compare-a').value;
+  const idB = document.getElementById('compare-b').value;
+  const message = document.getElementById('compare-message');
+  if (!idA || !idB) { message.innerHTML = alert_html('warn', 'Seleccioná Modelo A y Modelo B.'); return; }
+  if (idA === idB) { message.innerHTML = alert_html('warn', 'Seleccioná dos modelos diferentes para realizar la comparación.'); return; }
+  message.innerHTML = alert_html('info', 'Cargando fichas de ingeniería…');
+  try {
+    const [a, b] = await Promise.all([api(`/modelos/${encodeURIComponent(idA)}/resumen`), api(`/modelos/${encodeURIComponent(idB)}/resumen`)]);
+    COMPARE_SUMMARIES = {a, b};
+    document.getElementById('compare-results').innerHTML = renderComparison(a, b);
+    message.innerHTML = '';
+    applyComparisonFilter();
+  } catch (error) { message.innerHTML = alert_html('err', htmlEscape(error.message)); }
+}
+
+function comparisonIdentity(summary, side) {
+  const item = summary.identity;
+  return `<div class="compare-model-head"><span class="compare-side">Modelo ${side}</span><div class="model-name">${htmlEscape(item.capacidad.toUpperCase())} · ${htmlEscape(item.proveedor.toUpperCase())} · ${htmlEscape(item.modelo.toUpperCase())}</div><div class="model-code">${htmlEscape(item.sku_bgh || 'SKU no registrado')}</div>${item.pnb ? `<span class="badge badge-blue">${htmlEscape(item.pnb)}</span>` : ''}<div class="text-hint">${htmlEscape(item.model_id)}</div></div>`;
+}
+
+function comparisonValue(value, unit = '') {
+  return value === null || value === undefined ? '<span class="missing-value">Sin dato</span>' : `${htmlEscape(value)}${unit ? ' ' + unit : ''}`;
+}
+
+function deltaText(a, b, digits = 1) {
+  const delta = ComparisonEngine.numericDelta(a, b);
+  if (delta === null) return '<span class="missing-value">—</span>';
+  const rounded = Number(delta.toFixed(digits));
+  return rounded > 0 ? `+${rounded}` : String(rounded);
+}
+
+function compareTable(title, rows, columns = ['Parámetro','Modelo A','Modelo B','Resultado']) {
+  if (!rows.length) return '';
+  return `<section class="compare-section card"><div class="card-title">${htmlEscape(title)}</div><div class="table-scroll"><table class="compare-table"><thead><tr>${columns.map(column => `<th>${column}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div></section>`;
+}
+
+function compareRow(label, a, b, options = {}) {
+  const equal = a !== null && a !== undefined && b !== null && b !== undefined && String(a) === String(b);
+  const result = options.numeric ? deltaText(a, b, options.digits ?? 1) : a == null || b == null ? '— Sin dato' : equal ? '= Igual' : '≠ Diferente';
+  return `<tr data-comparison-row data-equal="${equal}"><th>${htmlEscape(label)}</th><td>${comparisonValue(a, options.unit)}</td><td>${comparisonValue(b, options.unit)}</td><td class="${equal ? 'delta-zero' : 'delta-change'}">${result}</td></tr>`;
+}
+
+function firstSpecification(summary) {
+  const specs = summary.specs || {};
+  const line = Object.keys(specs)[0];
+  return line ? specs[line] : null;
+}
+
+function timeMetrics(item) {
+  if (!item?.tiempos?.length) return null;
+  const max = Math.max(...item.tiempos);
+  return {limit:item.limite, count:item.tiempos.length, average:item.tiempos.reduce((a,b)=>a+b,0)/item.tiempos.length, max, critical:item.tiempos.indexOf(max)+1, exceeded:item.tiempos.filter(value=>value>item.limite).length};
+}
+
+function renderComparability(a, b) {
+  const labels = {palletizacion:'Palletización',specs:'Especificaciones',personal:'Dotación',layout:'Layout',tiempos:'Tiempos'};
+  const states = ComparisonEngine.dataComparability(a, b);
+  const display = {available:['✓','Comparable','badge-green'],partial:['⚠','Parcial','badge-warn'],warning:['⚠','Requiere validación','badge-warn'],missing:['—','Sin datos','badge-gray']};
+  return `<div class="card mb-12"><div class="card-title">Comparabilidad</div><div class="grid-auto">${Object.entries(states).map(([key,value]) => { const d=display[value.state]; return `<div class="metric"><div class="metric-label">${labels[key]}</div><span class="badge ${d[2]}">${d[0]} ${d[1]}</span><div class="metric-sub">A: ${value.a} · B: ${value.b}</div></div>`; }).join('')}</div></div>`;
+}
+
+function renderPersonnelHighlights(rows, totalA, totalB) {
+  if (totalA === null || totalB === null) return '';
+  const comparable = rows.filter(row => row.delta !== null);
+  const increase = comparable.filter(row => row.delta > 0).sort((a,b)=>b.delta-a.delta)[0];
+  const reduction = comparable.filter(row => row.delta < 0).sort((a,b)=>a.delta-b.delta)[0];
+  const unchanged = comparable.filter(row => row.delta === 0).length;
+  const totalDelta = totalB - totalA;
+  const cards = [
+    ['Dotación A',totalA,'personas'],['Dotación B',totalB,'personas'],['Diferencia total',totalDelta > 0 ? `+${totalDelta}` : totalDelta,'B − A'],
+    ['Mayor incremento',increase ? `${increase.name} · +${increase.delta}` : '—','personas'],
+    ['Mayor reducción',reduction ? `${reduction.name} · ${reduction.delta}` : '—','personas'],['Sin cambios',unchanged,'sectores comparables'],
+  ];
+  return `<div class="card mt-12"><div class="card-title">Resumen de dotación</div><div class="grid-auto">${cards.map(([label,value,sub])=>`<div class="metric"><div class="metric-label">${htmlEscape(label)}</div><div class="metric-value compact-value">${htmlEscape(value)}</div><div class="metric-sub">${htmlEscape(sub)}</div></div>`).join('')}</div></div>`;
+}
+
+function renderComparison(a, b) {
+  const totalA = ComparisonEngine.totalPersonnel(a.personal), totalB = ComparisonEngine.totalPersonnel(b.personal);
+  const timesA = timeMetrics(a.tiempos), timesB = timeMetrics(b.tiempos);
+  const specA = firstSpecification(a), specB = firstSpecification(b);
+  const executive = [
+    ['Dotación', totalA, totalB, 'personas'], ['Ciclo límite', timesA?.limit, timesB?.limit, 's'],
+    ['Unidades / pallet', a.palletizacion?.unidades_por_pallet, b.palletizacion?.unidades_por_pallet, 'u'],
+    ['Refrigerante', specA?.refrigerante, specB?.refrigerante, ''],
+  ].filter(([,left,right]) => left != null || right != null).map(([label,left,right,unit]) => compareRow(label,left,right,{numeric:typeof left==='number' || typeof right==='number',unit}));
+
+  const palletFields = [
+    ['Unidades / pallet','unidades_por_pallet',true,''],['Capas','capas',true,''],['Cajas / capa','cajas_por_capa',true,''],
+    ['Dimensiones L×A×H','dim_pallet_mm',false,'mm'],['Peso unitario','peso_unitario_kg',true,'kg'],['Peso máximo pallet','peso_max_pallet_kg',true,'kg'],
+    ['Orientación','orientacion',false,''],['Apilabilidad','apilable_hasta',true,''],['Embalaje','embalaje',false,''],
+  ].map(([label,key,numeric,unit]) => { let left=a.palletizacion?.[key], right=b.palletizacion?.[key]; if (Array.isArray(left)) left=left.join('×'); if(Array.isArray(right)) right=right.join('×'); return compareRow(label,left,right,{numeric,unit}); });
+
+  const personnelRows = ComparisonEngine.alignPersonnel(a.personal,b.personal);
+  const personnelTableRows = personnelRows.map(row => `<tr data-comparison-row data-equal="${row.equal}"><th>${htmlEscape(row.name)}</th><td>${comparisonValue(row.a)}</td><td>${comparisonValue(row.b)}</td><td class="${row.delta === 0 ? 'delta-zero' : 'delta-change'}">${row.delta === null ? '—' : deltaText(row.a,row.b,0)}</td></tr>`);
+  if (a.personal || b.personal) personnelTableRows.push(`<tr class="compare-total"><th>TOTAL</th><td>${comparisonValue(totalA)}</td><td>${comparisonValue(totalB)}</td><td>${deltaText(totalA,totalB,0)}</td></tr>`);
+
+  const specSections = [...new Set([...Object.keys(a.specs || {}),...Object.keys(b.specs || {})])].sort().map(line => {
+    const left=a.specs?.[line], right=b.specs?.[line];
+    const fields=[['BTU','btus',true,''],['Consumo','consumo_w',true,'W'],['SEER','eficiencia_seer',true,''],['Refrigerante','refrigerante',false,''],['Ruido UI','ruido_ui_db',true,'dB'],['Ruido UE','ruido_ue_db',true,'dB'],['Dimensiones UI','ui_dim_mm',false,'mm'],['Dimensiones UE','ue_dim_mm',false,'mm']];
+    const rows=fields.map(([label,key,numeric,unit])=>{let x=left?.[key],y=right?.[key];if(Array.isArray(x))x=x.join('×');if(Array.isArray(y))y=y.join('×');return compareRow(label,x,y,{numeric,unit});});
+    return compareTable(`Especificaciones · ${line}`,rows);
+  }).join('');
+
+  const timeRows = [['Ciclo límite',timesA?.limit,timesB?.limit,'s'],['Cantidad de puestos',timesA?.count,timesB?.count,''],['Promedio',timesA?.average,timesB?.average,'s'],['Puesto crítico',timesA?.critical,timesB?.critical,''],['Tiempo máximo',timesA?.max,timesB?.max,'s'],['Puestos sobre ciclo',timesA?.exceeded,timesB?.exceeded,'']].map(([label,left,right,unit])=>compareRow(label,left,right,{numeric:true,unit}));
+  if (a.tiempos?.tiempos && b.tiempos?.tiempos) for(let index=0;index<Math.max(a.tiempos.tiempos.length,b.tiempos.tiempos.length);index++) timeRows.push(compareRow(`P${index+1}`,a.tiempos.tiempos[index],b.tiempos.tiempos[index],{numeric:true,unit:'s'}));
+
+  const layoutRows = [['Existencia',a.layout?'Disponible':null,b.layout?'Disponible':null],['Nombre',a.layout?.nombre,b.layout?.nombre],['Versión',a.layout?.version,b.layout?.version],['Estado',a.layout?.estado,b.layout?.estado],['Fecha',a.layout?.fecha,b.layout?.fecha]].map(([label,left,right])=>compareRow(label,left,right));
+  const warnings = [...a.warnings.map(message=>`Modelo A: ${message}`),...b.warnings.map(message=>`Modelo B: ${message}`)];
+
+  return `<div class="compare-header card"><div>${comparisonIdentity(a,'A')}</div><div class="versus">VS</div><div>${comparisonIdentity(b,'B')}</div></div>
+    ${warnings.map(message=>alert_html('warn',htmlEscape(message))).join('')}${renderComparability(a,b)}
+    ${compareTable('Diferencias principales',executive)}${renderPersonnelHighlights(personnelRows,totalA,totalB)}
+    ${compareTable('Dotación por sector',personnelTableRows,['Sector / proceso','Modelo A','Modelo B','Δ B − A'])}
+    ${compareTable('Palletización',palletFields)}${specSections}${compareTable('Tiempos',timeRows,['Parámetro / puesto','Modelo A','Modelo B','Δ B − A'])}${compareTable('Layout',layoutRows)}`;
+}
+
+function applyComparisonFilter() {
+  const onlyDifferences = document.getElementById('compare-only-diffs').checked;
+  document.querySelectorAll('#compare-results [data-comparison-row]').forEach(row => row.classList.toggle('hidden', onlyDifferences && row.dataset.equal === 'true'));
+}
 
 /* ── Alert helper ─────────────────────── */
 const ALERT_ICONS = {

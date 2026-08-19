@@ -167,3 +167,25 @@ advertencias. No modifica ni completa automáticamente ninguna fuente industrial
 Los estilos se mantienen en `styles.css`; `index.html` conserva por ahora el
 JavaScript para evitar una extracción masiva en esta etapa. Una separación a
 `app.js` queda recomendada cuando se incorporen los próximos módulos.
+
+## Comparador de modelos
+
+La herramienta **Comparar modelos** es pública y consulta dos veces
+`GET /modelos/{model_id}/resumen`; no agrega un endpoint de comparación ni
+requiere credenciales. El Modelo Activo se propone como Modelo A y los deltas
+numéricos se calculan siempre como `B − A`.
+
+La comparación cubre identidad, comparabilidad por dominio, palletización,
+especificaciones separadas por línea, dotación por sector, tiempos por puesto y
+metadatos de layout. Los sectores se alinean únicamente normalizando espacios,
+mayúsculas y diacríticos; nombres semánticamente distintos no se fusionan. Los
+datos ausentes se presentan como `Sin dato`, nunca como cero.
+
+## Consulta y edición de dotación
+
+Dotación abre siempre en modo de solo lectura con métricas, tabla, participación
+y total. El editor solo aparece cuando existe una API key administrativa
+validada en memoria. Guardar continúa usando el `POST /personal` protegido,
+recarga la fuente y vuelve a consulta; cancelar o navegar con cambios pendientes
+solicita confirmación. Un administrador puede iniciar una dotación vacía, pero
+el sistema no inventa sectores.

@@ -75,3 +75,36 @@ def test_engineering_views_include_times_table_and_integrity_panel():
     assert "Sobre ciclo" in script
     assert 'id="integrity-panel"' in html
     assert "function loadIntegrityPanel" in script
+
+
+def test_comparator_is_public_and_uses_two_model_summaries():
+    html = INDEX.read_text(encoding="utf-8")
+    script = inline_javascript()
+    assert 'data-page="compare"' in html
+    assert 'id="compare-a"' in html and 'id="compare-b"' in html
+    assert "idA === idB" in script
+    assert "Promise.all([api(`/modelos/${encodeURIComponent(idA)}/resumen`)" in script
+    assert "X-API-Key" not in script[script.index("// COMPARADOR DE MODELOS"):script.index("/* ── Alert helper")]
+    assert "swapComparedModels" in script
+    assert "applyComparisonFilter" in script
+
+
+def test_personnel_defaults_to_read_only_and_edit_requires_memory_key():
+    script = inline_javascript()
+    read_block = script[script.index("function renderPersonalRead"):script.index("function enterPersonalEdit")]
+    assert '<table class="technical-table staff-table">' in read_block
+    assert "<input" not in read_block
+    assert "getAdminKey()" in read_block
+    assert "function enterPersonalEdit" in script
+    assert "if (!getAdminKey()) return" in script
+    assert "MODO EDICIÓN" in script
+    assert "cancelPersonalEdit" in script
+
+
+def test_personnel_save_reloads_read_view_and_unsaved_changes_are_guarded():
+    script = inline_javascript()
+    assert "ComparisonEngine.validatePersonnelRows(PERSONAL_DATA)" in script
+    assert "await loadPersonal()" in script
+    assert "Dotación actualizada correctamente" in script
+    assert "Hay cambios de dotación sin guardar" in script
+    assert "localStorage" not in script
