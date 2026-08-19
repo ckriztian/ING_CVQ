@@ -4,7 +4,9 @@ Aplicación interna de Ingeniería formada por una API FastAPI y un frontend HTM
 
 ## Requisitos e instalación
 
-- Python 3.11 o posterior.
+- Python 3.11, 3.12 o 3.13. Python 3.14 todavía emite advertencias de
+  compatibilidad desde la capa Pydantic V1 incluida por FastAPI y no forma parte
+  de la matriz soportada de este proyecto.
 
 ```bash
 python -m venv .venv
@@ -58,6 +60,33 @@ python -m http.server 5500
 ```
 
 Luego abra `http://127.0.0.1:5500` y mantenga `http://127.0.0.1:8000` como URL de API.
+
+### Windows y solución de problemas de arranque
+
+En Windows se recomienda seleccionar explícitamente una versión compatible:
+
+```powershell
+py -3.13 -m venv .venv
+.venv\Scripts\activate
+python -m pip install -r requirements.txt
+python -m uvicorn main:app --reload
+```
+
+El archivo `modelos.json` debe estar junto a `main.py`. La carga de arranque usa
+directamente `Path(__file__).resolve().parent / "modelos.json"`, por lo que no
+depende del directorio actual ni de un alias global de ruta durante el
+subproceso de `--reload`. Si un traceback todavía muestra literalmente
+`load_models(MODELOS_PATH)`, se está ejecutando una copia anterior de `main.py`:
+actualice todos los archivos de la misma revisión y elimine `__pycache__` antes
+de reiniciar Uvicorn.
+
+Para confirmar qué archivo está importando Python:
+
+```powershell
+Get-ChildItem -Recurse -Directory -Filter __pycache__ | Remove-Item -Recurse -Force
+python -c "import main; print(main.__file__); print(len(main.MODELOS))"
+python -m uvicorn main:app --reload
+```
 
 ## Arquitectura actual
 
@@ -118,3 +147,23 @@ Una misma identidad puede tener especificaciones para varias líneas. La línea 
 Al elegir capacidad, proveedor y modelo en cualquier módulo, la interfaz resuelve su `model_id`, lo presenta en la barra superior y sincroniza los selects de Palletización, Ficha, Personal, Especificaciones, Layouts y Tiempos. Solo el `model_id` se conserva en `sessionStorage`; la clave administrativa continúa exclusivamente en memoria.
 
 Al recargar la página, el frontend comprueba que el ID guardado siga presente en `/modelos`. Si existe, restaura el contexto; si ya no existe, elimina la selección guardada. La Ficha utiliza el resumen consolidado como dashboard mínimo sin reemplazar los demás módulos.
+
+## Experiencia de consulta de Ingeniería
+
+La pantalla **Inicio** concentra la selección por capacidad, proveedor y modelo,
+un acceso rápido limitado al catálogo por SKU/PNB y los indicadores reales de
+completitud. Al abrir un producto, **Resumen** presenta su identidad, métricas,
+advertencias y disponibilidad de cada dominio.
+
+La navegación contextual mantiene el Modelo Activo al abrir Especificaciones,
+Palletización, Dotación, Layout o Tiempos y carga automáticamente la información
+correspondiente. Los estados siempre incluyen texto e icono (`Disponible`,
+`Faltante` o `Advertencia`) y no dependen únicamente del color.
+
+La sección administrativa **Calidad de datos** consume `/modelos/integridad` y
+expone cobertura, specs huérfanas, referencias SKU compartidas y modelos con
+advertencias. No modifica ni completa automáticamente ninguna fuente industrial.
+
+Los estilos se mantienen en `styles.css`; `index.html` conserva por ahora el
+JavaScript para evitar una extracción masiva en esta etapa. Una separación a
+`app.js` queda recomendada cuando se incorporen los próximos módulos.
