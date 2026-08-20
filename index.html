@@ -2008,9 +2008,13 @@ function deltaText(a, b, digits = 1) {
   return rounded > 0 ? `+${rounded}` : String(rounded);
 }
 
-function compareTable(title, rows, columns = ['Parámetro','Modelo A','Modelo B','Resultado']) {
+function compareTable(title, rows, columns) {
   if (!rows.length) return '';
-  return `<section class="compare-section card"><div class="card-title">${htmlEscape(title)}</div><div class="table-scroll"><table class="compare-table"><thead><tr>${columns.map(column => `<th>${column}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div></section>`;
+  return `<section class="compare-section card"><div class="card-title">${htmlEscape(title)}</div><div class="table-scroll"><table class="compare-table"><thead><tr>${columns.map(column => `<th>${htmlEscape(column)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div></section>`;
+}
+
+function comparisonTableColumns(a, b, firstColumn = 'Parámetro', resultColumn = 'Resultado') {
+  return [firstColumn, ComparisonEngine.comparisonModelLabel(a), ComparisonEngine.comparisonModelLabel(b), resultColumn];
 }
 
 function compareRow(label, a, b, options = {}) {
@@ -2054,6 +2058,9 @@ function renderPersonnelHighlights(rows, totalA, totalB) {
 }
 
 function renderComparison(a, b) {
+  const standardColumns = comparisonTableColumns(a, b);
+  const deltaColumns = comparisonTableColumns(a, b, 'Sector / proceso', 'Δ B − A');
+  const timeColumns = comparisonTableColumns(a, b, 'Parámetro / puesto', 'Δ B − A');
   const totalA = ComparisonEngine.totalPersonnel(a.personal), totalB = ComparisonEngine.totalPersonnel(b.personal);
   const timesA = timeMetrics(a.tiempos), timesB = timeMetrics(b.tiempos);
   const specA = firstSpecification(a), specB = firstSpecification(b);
@@ -2077,7 +2084,7 @@ function renderComparison(a, b) {
     const left=a.specs?.[line], right=b.specs?.[line];
     const fields=[['BTU','btus',true,''],['Consumo','consumo_w',true,'W'],['SEER','eficiencia_seer',true,''],['Refrigerante','refrigerante',false,''],['Ruido UI','ruido_ui_db',true,'dB'],['Ruido UE','ruido_ue_db',true,'dB'],['Dimensiones UI','ui_dim_mm',false,'mm'],['Dimensiones UE','ue_dim_mm',false,'mm']];
     const rows=fields.map(([label,key,numeric,unit])=>{let x=left?.[key],y=right?.[key];if(Array.isArray(x))x=x.join('×');if(Array.isArray(y))y=y.join('×');return compareRow(label,x,y,{numeric,unit});});
-    return compareTable(`Especificaciones · ${line}`,rows);
+    return compareTable(`Especificaciones · ${line}`, rows, standardColumns);
   }).join('');
 
   const timeRows = [['Ciclo límite',timesA?.limit,timesB?.limit,'s'],['Cantidad de puestos',timesA?.count,timesB?.count,''],['Promedio',timesA?.average,timesB?.average,'s'],['Puesto crítico',timesA?.critical,timesB?.critical,''],['Tiempo máximo',timesA?.max,timesB?.max,'s'],['Puestos sobre ciclo',timesA?.exceeded,timesB?.exceeded,'']].map(([label,left,right,unit])=>compareRow(label,left,right,{numeric:true,unit}));
@@ -2088,9 +2095,9 @@ function renderComparison(a, b) {
 
   return `<div class="compare-header card"><div>${comparisonIdentity(a,'A')}</div><div class="versus">VS</div><div>${comparisonIdentity(b,'B')}</div></div>
     ${warnings.map(message=>alert_html('warn',htmlEscape(message))).join('')}${renderComparability(a,b)}
-    ${compareTable('Diferencias principales',executive)}${renderPersonnelHighlights(personnelRows,totalA,totalB)}
-    ${compareTable('Dotación por sector',personnelTableRows,['Sector / proceso','Modelo A','Modelo B','Δ B − A'])}
-    ${compareTable('Palletización',palletFields)}${specSections}${compareTable('Tiempos',timeRows,['Parámetro / puesto','Modelo A','Modelo B','Δ B − A'])}${compareTable('Layout',layoutRows)}`;
+    ${compareTable('Diferencias principales', executive, standardColumns)}${renderPersonnelHighlights(personnelRows,totalA,totalB)}
+    ${compareTable('Dotación por sector', personnelTableRows, deltaColumns)}
+    ${compareTable('Palletización', palletFields, standardColumns)}${specSections}${compareTable('Tiempos', timeRows, timeColumns)}${compareTable('Layout', layoutRows, standardColumns)}`;
 }
 
 function applyComparisonFilter() {

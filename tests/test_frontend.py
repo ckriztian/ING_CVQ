@@ -89,6 +89,18 @@ def test_comparator_is_public_and_uses_two_model_summaries():
     assert "applyComparisonFilter" in script
 
 
+def test_comparison_tables_use_selected_model_labels():
+    script = inline_javascript()
+    comparison_block = script[script.index("// COMPARADOR DE MODELOS"):script.index("/* ── Alert helper")]
+    assert "function comparisonTableColumns(a, b" in comparison_block
+    assert "ComparisonEngine.comparisonModelLabel(a)" in comparison_block
+    assert "ComparisonEngine.comparisonModelLabel(b)" in comparison_block
+    for domain in ["Dotación por sector", "Palletización", "Especificaciones", "Tiempos"]:
+        assert domain in comparison_block
+    assert "['Sector / proceso','Modelo A','Modelo B'" not in comparison_block
+    assert "['Parámetro / puesto','Modelo A','Modelo B'" not in comparison_block
+
+
 def test_personnel_defaults_to_read_only_and_edit_requires_memory_key():
     script = inline_javascript()
     read_block = script[script.index("function renderPersonalRead"):script.index("function enterPersonalEdit")]

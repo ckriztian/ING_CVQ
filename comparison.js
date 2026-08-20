@@ -10,6 +10,14 @@
       .replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
   }
 
+  function comparisonModelLabel(model) {
+    const identity = model?.identity || model || {};
+    return [identity.capacidad, identity.proveedor, identity.modelo]
+      .map(value => String(value || '').trim().toUpperCase())
+      .filter(Boolean)
+      .join(' · ');
+  }
+
   function totalPersonnel(personal) {
     if (!personal || !Array.isArray(personal.tramos)) return null;
     return personal.tramos.reduce((sum, item) => sum + Number(item.personas), 0);
@@ -63,5 +71,5 @@
     return {valid:true, error:null};
   }
 
-  return {normalizeSectorName, totalPersonnel, numericDelta, alignPersonnel, dataComparability, validatePersonnelRows};
+  return {comparisonModelLabel, normalizeSectorName, totalPersonnel, numericDelta, alignPersonnel, dataComparability, validatePersonnelRows};
 });

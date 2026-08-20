@@ -24,6 +24,19 @@ def test_numeric_delta_and_swapped_sign():
     assert run_engine("E.numericDelta(null,34)") is None
 
 
+def test_model_label_uses_selected_identity_and_survives_swap():
+    a = "{identity:{capacidad:'18k',proveedor:'tcl',modelo:'wifi inv'}}"
+    b = "{identity:{capacidad:'12k',proveedor:'midea',modelo:'inv'}}"
+    assert run_engine(f"[E.comparisonModelLabel({a}),E.comparisonModelLabel({b})]") == [
+        "18K · TCL · WIFI INV",
+        "12K · MIDEA · INV",
+    ]
+    assert run_engine(f"[E.comparisonModelLabel({b}),E.comparisonModelLabel({a})]") == [
+        "12K · MIDEA · INV",
+        "18K · TCL · WIFI INV",
+    ]
+
+
 def test_sector_alignment_is_safe_and_keeps_exclusive_sectors():
     expression = "E.alignPersonnel({tramos:[{nombre:' Desembalaje ',personas:12},{nombre:'Soldadura',personas:7}]},{tramos:[{nombre:'desembalaje',personas:14},{nombre:'Calesita soldadura',personas:8}]})"
     rows = run_engine(expression)
