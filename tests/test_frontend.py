@@ -57,6 +57,16 @@ def test_quick_selector_only_uses_master_model_catalog():
     assert "item.pnb" in script
 
 
+def test_admin_pallet_save_refreshes_master_catalog_and_active_views():
+    script = inline_javascript()
+    assert "function refreshCatalogAfterPalletSave()" in script
+    assert "[CATALOGUE, MASTER_MODELS] = await Promise.all([api('/catalogo'), api('/modelos')])" in script
+    assert "setActiveModel(refreshedActive, false)" in script
+    assert "await compareModels()" in script
+    assert "result.catalog_status !== 'synchronized'" in script
+    assert "Catálogo maestro sincronizado" in script
+
+
 def test_missing_and_warning_states_have_textual_labels():
     script = inline_javascript()
     for label in ["Disponible", "Advertencia", "Faltante", "Sin datos de dotación", "Sin especificaciones"]:

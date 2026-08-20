@@ -92,6 +92,7 @@ def client(tmp_path, monkeypatch):
         ("PERSONAL_PATH", "personal_linea.json"),
         ("LAYOUTS_PATH", "layouts.json"),
         ("TIEMPOS_PATH", "tiempos_linea.json"),
+        ("MODELOS_PATH", "modelos.json"),
     ]:
         target = tmp_path / filename
         shutil.copy2(main.BASE_DIR / filename, target)
@@ -102,6 +103,13 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(main, "PERSONAL", main.load_json(paths["PERSONAL_PATH"], "personal test"))
     monkeypatch.setattr(main, "LAYOUTS", main.load_json(paths["LAYOUTS_PATH"], "layouts test"))
     monkeypatch.setattr(main, "TIEMPOS", main.load_json(paths["TIEMPOS_PATH"], "tiempos test"))
+    models = main.load_models(paths["MODELOS_PATH"])
+    monkeypatch.setattr(main, "MODELOS", models)
+    monkeypatch.setattr(main, "MODELS_BY_ID", {item["model_id"]: item for item in models})
+    monkeypatch.setattr(main, "MODEL_ID_BY_KEY", {
+        (main.norm(item["capacidad"]), main.norm(item["proveedor"]), main.norm(item["modelo"])): item["model_id"]
+        for item in models
+    })
     monkeypatch.setenv("ADMIN_API_KEY", ADMIN_KEY)
     yield AsgiClient(main.app)
 
@@ -192,6 +200,66 @@ def test_csv_replacement_uses_temporary_files(client):
     response = client.post("/admin/csv/replace", json={"csv_text": original}, headers=auth())
     assert response.status_code == 200
     assert main.CSV_PATH.with_suffix(".csv.bak").exists()
+
+
+def test_sku_change_syncs_master_catalog_and_preserves_model_id(client):
+    original = client.get("/admin/csv", headers=auth()).text
+    old_sku = "UC.SPL.F/C BSIC37WCNX"
+    new_sku = "SKU_TEST_SINCRONIZADO"
+    changed = original.replace(old_sku, new_sku, 1)
+
+    before = client.get("/modelos/mdl_000002").json()
+    response = client.post("/admin/csv/replace", json={"csv_text": changed}, headers=auth())
+
+    assert response.status_code == 200
+    assert response.json()["catalog_status"] == "synchronized"
+    assert response.json()["rows"] == 20
+    assert new_sku in main.CSV_PATH.read_text(encoding="utf-8")
+    persisted = next(item for item in main.load_models(main.MODELOS_PATH) if item["model_id"] == "mdl_000002")
+    identity = client.get("/modelos/mdl_000002").json()
+    summary = client.get("/modelos/mdl_000002/resumen").json()
+    assert before["model_id"] == persisted["model_id"] == identity["model_id"] == summary["model_id"]
+    assert persisted["sku_bgh"] == identity["sku_bgh"] == summary["identity"]["sku_bgh"] == new_sku
+    assert persisted["pnb"] == before["pnb"]
+
+
+def test_catalog_write_failure_leaves_csv_unchanged(client, monkeypatch):
+    original = client.get("/admin/csv", headers=auth()).text
+    changed = original.replace("UC.SPL.F/C BSIC37WCNX", "SKU_QUE_NO_DEBE_GUARDARSE", 1)
+    monkeypatch.setattr(main, "save_models", lambda *_: (_ for _ in ()).throw(OSError("fallo simulado")))
+
+    response = client.post("/admin/csv/replace", json={"csv_text": changed}, headers=auth())
+
+    assert response.status_code == 500
+    assert main.CSV_PATH.read_text(encoding="utf-8") == original
+    assert main.load_models(main.MODELOS_PATH)[1]["sku_bgh"] == "UC.SPL.F/C BSIC37WCNX"
+
+
+def test_csv_write_failure_rolls_master_catalog_back(client, monkeypatch):
+    original_csv = client.get("/admin/csv", headers=auth()).text
+    original_models = main.load_models(main.MODELOS_PATH)
+    changed = original_csv.replace("UC.SPL.F/C BSIC37WCNX", "SKU_TRANSACCION_FALLIDA", 1)
+    monkeypatch.setattr(main, "save_csv", lambda *_: (_ for _ in ()).throw(OSError("fallo CSV simulado")))
+
+    response = client.post("/admin/csv/replace", json={"csv_text": changed}, headers=auth())
+
+    assert response.status_code == 500
+    assert main.CSV_PATH.read_text(encoding="utf-8") == original_csv
+    assert main.load_models(main.MODELOS_PATH) == original_models
+
+
+def test_identity_change_and_new_product_are_rejected(client):
+    original = client.get("/admin/csv", headers=auth()).text
+    changed_key = original.replace("12k,midea,inv,", "12k,midea,inverter,", 1)
+    response = client.post("/admin/csv/replace", json={"csv_text": changed_key}, headers=auth())
+    assert response.status_code == 409
+    assert "cambia la identidad" in response.json()["detail"]
+
+    first_data_row = original.splitlines()[1]
+    new_product = original.rstrip("\n") + "\n" + first_data_row.replace("12k,midea,inv,", "12k,nuevo,inv,") + "\n"
+    response = client.post("/admin/csv/replace", json={"csv_text": new_product}, headers=auth())
+    assert response.status_code == 409
+    assert main.CSV_PATH.read_text(encoding="utf-8") == original
 
 
 def test_invalid_csv_does_not_replace_active_file(client):

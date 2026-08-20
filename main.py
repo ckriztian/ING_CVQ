@@ -192,15 +192,7 @@ def load_json(path: Path, label: str) -> Dict[str, Any]:
     return data
 
 
-def load_models(path: Path) -> List[Dict[str, Any]]:
-    if not path.exists():
-        raise FileNotFoundError(f"No existe el catálogo maestro: {path}")
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        raise RuntimeError("El catálogo maestro contiene JSON inválido") from exc
-    except OSError as exc:
-        raise RuntimeError("No se pudo leer el catálogo maestro") from exc
+def validate_models(data: Any) -> List[Dict[str, Any]]:
     if not isinstance(data, list):
         raise RuntimeError("El catálogo maestro debe contener una lista JSON")
     ids, keys = set(), set()
@@ -218,6 +210,18 @@ def load_models(path: Path) -> List[Dict[str, Any]]:
         ids.add(model_id)
         keys.add(key)
     return data
+
+
+def load_models(path: Path) -> List[Dict[str, Any]]:
+    if not path.exists():
+        raise FileNotFoundError(f"No existe el catálogo maestro: {path}")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("El catálogo maestro contiene JSON inválido") from exc
+    except OSError as exc:
+        raise RuntimeError("No se pudo leer el catálogo maestro") from exc
+    return validate_models(data)
 
 
 def atomic_write_text(path: Path, text: str, validator) -> None:
@@ -242,9 +246,14 @@ def atomic_write_text(path: Path, text: str, validator) -> None:
         raise
 
 
-def atomic_save_json(path: Path, data: Dict[str, Any]) -> None:
+def atomic_save_json(path: Path, data: Any) -> None:
     text = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
     atomic_write_text(path, text, json.loads)
+
+
+def save_models(path: Path, models: List[Dict[str, Any]]) -> None:
+    text = json.dumps(models, ensure_ascii=False, indent=2) + "\n"
+    atomic_write_text(path, text, lambda candidate: validate_models(json.loads(candidate)))
 
 
 def validate_csv_text(text: str, expected_columns: List[str], loader, target: Path) -> None:
@@ -285,6 +294,77 @@ MODEL_ID_BY_KEY = {
     (norm(item["capacidad"]), norm(item["proveedor"]), norm(item["modelo"])): item["model_id"]
     for item in MODELOS
 }
+
+
+def refresh_model_indexes(models: Optional[List[Dict[str, Any]]] = None) -> None:
+    global MODELOS, MODELS_BY_ID, MODEL_ID_BY_KEY
+    MODELOS = models if models is not None else load_models(MODELOS_PATH)
+    MODELS_BY_ID = {item["model_id"]: item for item in MODELOS}
+    MODEL_ID_BY_KEY = {
+        (norm(item["capacidad"]), norm(item["proveedor"]), norm(item["modelo"])): item["model_id"]
+        for item in MODELOS
+    }
+
+
+def synchronize_catalog_skus(candidate_kb: Dict[str, Any], models: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    pallet_by_key = {
+        (cap, provider, model): record
+        for cap, providers in candidate_kb.items()
+        for provider, model_records in providers.items()
+        for model, record in model_records.items()
+    }
+    master_by_key = {
+        (norm(item["capacidad"]), norm(item["proveedor"]), norm(item["modelo"])): item
+        for item in models
+    }
+    new_keys = sorted(set(pallet_by_key) - set(master_by_key))
+    missing_keys = sorted(set(master_by_key) - set(pallet_by_key))
+    if new_keys or missing_keys:
+        details = []
+        if new_keys:
+            details.append("claves nuevas: " + ", ".join("/".join(key) for key in new_keys))
+        if missing_keys:
+            details.append("claves ausentes: " + ", ".join("/".join(key) for key in missing_keys))
+        raise ValueError(
+            "La edición cambia la identidad del catálogo (capacidad/proveedor/modelo); "
+            "requiere tratamiento explícito y no puede sincronizarse como un cambio de SKU. " + "; ".join(details)
+        )
+    return [
+        {**item, "sku_bgh": pallet_by_key[key]["sku"] or None}
+        for item in models
+        for key in [(norm(item["capacidad"]), norm(item["proveedor"]), norm(item["modelo"]))]
+    ]
+
+
+def replace_pallet_csv_and_sync_catalog(csv_text: str) -> int:
+    candidate_text = csv_text.rstrip("\n") + "\n"
+    validate_csv_text(candidate_text, PALLET_COLUMNS, load_knowledge, CSV_PATH)
+    fd, name = tempfile.mkstemp(suffix=".csv", dir=CSV_PATH.parent)
+    os.close(fd)
+    candidate_path = Path(name)
+    try:
+        candidate_path.write_text(candidate_text, encoding="utf-8")
+        candidate_kb = load_knowledge(candidate_path)
+    finally:
+        candidate_path.unlink(missing_ok=True)
+
+    current_models = load_models(MODELOS_PATH)
+    synchronized_models = synchronize_catalog_skus(candidate_kb, current_models)
+    save_models(MODELOS_PATH, synchronized_models)
+    try:
+        save_csv(CSV_PATH, candidate_text, PALLET_COLUMNS, load_knowledge)
+    except Exception:
+        try:
+            save_models(MODELOS_PATH, current_models)
+        except Exception as rollback_error:
+            logger.critical("No se pudo restaurar el catálogo maestro tras fallar el CSV: %s", rollback_error)
+            raise RuntimeError("Falló el CSV y también la restauración del catálogo maestro") from rollback_error
+        raise
+
+    global KB
+    KB = load_knowledge(CSV_PATH)
+    refresh_model_indexes(load_models(MODELOS_PATH))
+    return sum(len(models) for providers in candidate_kb.values() for models in providers.values())
 
 
 class PalletInfo(BaseModel):
@@ -629,13 +709,15 @@ def admin_csv():
 
 @app.post("/admin/csv/replace", dependencies=[Depends(require_admin)])
 def replace_csv(body: CsvReplaceRequest):
-    global KB
     try:
-        save_csv(CSV_PATH, body.csv_text, PALLET_COLUMNS, load_knowledge)
+        rows = replace_pallet_csv_and_sync_catalog(body.csv_text)
     except ValueError as exc:
-        raise HTTPException(422, str(exc)) from exc
-    KB = load_knowledge(CSV_PATH)
-    return {"status": "saved", "rows": len(catalogo())}
+        status_code = 409 if "cambia la identidad del catálogo" in str(exc) else 422
+        raise HTTPException(status_code, str(exc)) from exc
+    except (OSError, RuntimeError) as exc:
+        logger.error("No se pudo guardar y sincronizar palletización: %s", exc)
+        raise HTTPException(500, "No se pudo sincronizar el CSV con el catálogo maestro; no se confirmó el guardado") from exc
+    return {"status": "saved", "catalog_status": "synchronized", "rows": rows}
 
 
 @app.get("/admin/specs", response_class=PlainTextResponse, dependencies=[Depends(require_admin)])
@@ -656,17 +738,12 @@ def replace_specs(body: CsvReplaceRequest):
 
 @app.post("/reload", dependencies=[Depends(require_admin)])
 def reload_all():
-    global KB, SPECS, PERSONAL, LAYOUTS, TIEMPOS, MODELOS, MODELS_BY_ID, MODEL_ID_BY_KEY
+    global KB, SPECS, PERSONAL, LAYOUTS, TIEMPOS
     KB, SPECS = load_knowledge(CSV_PATH), load_specs(ESPEC_PATH)
     PERSONAL = load_json(PERSONAL_PATH, "personal de línea")
     LAYOUTS = load_json(LAYOUTS_PATH, "layouts")
     TIEMPOS = load_json(TIEMPOS_PATH, "tiempos de línea")
-    MODELOS = load_models(BASE_DIR / "modelos.json")
-    MODELS_BY_ID = {item["model_id"]: item for item in MODELOS}
-    MODEL_ID_BY_KEY = {
-        (norm(item["capacidad"]), norm(item["proveedor"]), norm(item["modelo"])): item["model_id"]
-        for item in MODELOS
-    }
+    refresh_model_indexes()
     return {"status": "all_reloaded"}
 
 

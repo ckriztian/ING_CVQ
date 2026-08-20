@@ -142,6 +142,21 @@ Los endpoints orientados a identidad son:
 
 Una misma identidad puede tener especificaciones para varias líneas. La línea es una dimensión relacionada y no genera otro `model_id`.
 
+### Fuentes de verdad y sincronización administrativa
+
+| Campo | Fuente autoritativa |
+| --- | --- |
+| `model_id` | `modelos.json` (estable y no reutilizable) |
+| `capacidad`, `proveedor`, `modelo` | `modelos.json` para identidad; deben coincidir con `palletizacion.csv` |
+| `sku_bgh` | columna `sku` de `palletizacion.csv`, sincronizada al guardar desde Administración |
+| `pnb` | `modelos.json`; no se sobrescribe desde palletización |
+
+`POST /admin/csv/replace` valida primero el CSV, conserva los `model_id`,
+sincroniza únicamente `sku_bgh`, persiste ambas fuentes mediante las escrituras
+atómicas existentes y recarga los índices en memoria. Una alta, baja o
+modificación de `capacidad/proveedor/modelo` se rechaza para que no sea
+interpretada arbitrariamente como un renombrado o un producto nuevo.
+
 ### Modelo activo en el frontend
 
 Al elegir capacidad, proveedor y modelo en cualquier módulo, la interfaz resuelve su `model_id`, lo presenta en la barra superior y sincroniza los selects de Palletización, Ficha, Personal, Especificaciones, Layouts y Tiempos. Solo el `model_id` se conserva en `sessionStorage`; la clave administrativa continúa exclusivamente en memoria.

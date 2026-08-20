@@ -595,6 +595,25 @@ async function loadCatalogo() {
   }
 }
 
+async function refreshCatalogAfterPalletSave() {
+  const activeId = activeModel?.model_id || sessionStorage.getItem('ACTIVE_MODEL_ID');
+  [CATALOGUE, MASTER_MODELS] = await Promise.all([api('/catalogo'), api('/modelos')]);
+  populateCaps();
+  populateQuickModelSearch();
+  populateComparisonSelectors();
+  const refreshedActive = activeId ? MASTER_MODELS.find(item => item.model_id === activeId) : null;
+  if (refreshedActive) setActiveModel(refreshedActive, false);
+  else if (activeId) changeActiveModel();
+  await loadHomeMetrics();
+  if (document.getElementById('page-ficha').classList.contains('active') && activeModel) await showFicha();
+  if (document.getElementById('page-compare').classList.contains('active')) {
+    const a = document.getElementById('compare-a').value;
+    const b = document.getElementById('compare-b').value;
+    if (a && b && a !== b) await compareModels();
+  }
+  if (document.getElementById('integrity-panel')) await loadIntegrityPanel();
+}
+
 async function loadLineas() {
   try {
     LINEAS = await api('/lineas');
@@ -1871,8 +1890,10 @@ async function saveCsvGrid() {
     if (!GRID_DATA.pallet.length) { alert('No hay datos para guardar. Cargá primero del servidor.'); return; }
     setAdminStatus('Guardando…');
     const csv = rowsToCsv(GRID_DATA.pallet, PALLET_COLS);
-    await apiAdmin('/admin/csv/replace', 'POST', { csv_text: csv });
-    setAdminStatus(`Guardado (${GRID_DATA.pallet.length} filas)`, 'ok');
+    const result = await apiAdmin('/admin/csv/replace', 'POST', { csv_text: csv });
+    if (result.catalog_status !== 'synchronized') throw new Error('CSV guardado, pero el catálogo maestro no confirmó la sincronización.');
+    await refreshCatalogAfterPalletSave();
+    setAdminStatus(`Datos guardados (${GRID_DATA.pallet.length} filas). Catálogo maestro sincronizado.`, 'ok');
   } catch(e) { setAdminStatus('Error', 'err'); alert(e.message); }
 }
 
