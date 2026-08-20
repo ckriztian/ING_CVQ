@@ -1,13 +1,14 @@
-# 1) Crear venv (opcional)
+# 1) Crear venv con Python 3.11, 3.12 o 3.13 (opcional)
+#   Windows (recomendado): py -3.13 -m venv .venv
 python -m venv .venv
 #   Activar:
 #   Windows: .venv\Scripts\activate
 #   Linux/Mac: source .venv/bin/activate
 
-# 2) Instalar dependencias
-pip install fastapi uvicorn pandas pydantic
+# 2) Instalar las versiones compatibles del proyecto
+python -m pip install -r requirements.txt
 
 # 3) Correr API
 python main.py
 # o
-uvicorn main:app --reload --port 8000
+python -m uvicorn main:app --reload --port 8000
