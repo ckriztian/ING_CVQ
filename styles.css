@@ -115,7 +115,7 @@
     .api-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
 
     /* Page */
-    .page { display: none; padding: 28px; max-width: 1100px; }
+    .page { display: none; padding: 0; width: 100%; max-width: 1280px; }
     .page.active { display: block; }
 
     /* Section headers */
@@ -379,3 +379,96 @@
     .text-hint  { color: var(--hint); font-size: 12px; }
     .fw-600 { font-weight: 600; }
     .hidden { display: none !important; }
+
+    /* Ingeniería orientada al modelo */
+    .home-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, .7fr); gap: 14px; }
+    .active-summary { border-top: 3px solid var(--accent); }
+    .model-name { font-size: 20px; line-height: 1.25; font-weight: 600; letter-spacing: -.2px; }
+    .model-code { margin-top: 8px; color: var(--muted); font-family: 'DM Mono', monospace; font-size: 12px; }
+    .empty-state { min-height: 120px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 6px; text-align: center; color: var(--muted); }
+    .empty-state strong { color: var(--text); font-size: 14px; }
+    .context-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .technical-sections > div { padding: 14px; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface2); }
+    .technical-sections .kv-row span { padding-top: 7px; padding-bottom: 7px; }
+    .table-scroll { overflow-x: auto; }
+    .technical-table td:nth-child(2), .technical-table td:nth-child(3) { text-align: right; }
+    .data-issue { padding: 8px 10px; border-left: 3px solid var(--warn); background: var(--warn-lt); font-size: 12px; margin-bottom: 6px; }
+    #active-model-indicator { max-width: 360px; padding: 4px 5px 4px 10px; }
+    #active-model-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #active-model-indicator .btn { margin-left: 3px; }
+
+    button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible {
+      outline: 2px solid var(--accent); outline-offset: 2px;
+    }
+
+    @media (max-width: 1100px) {
+      .topbar { align-items: flex-start; }
+      .topbar-right { flex-wrap: wrap; justify-content: flex-end; }
+      .home-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 860px) {
+      .sidebar { display: flex; width: 190px; }
+      .page { padding: 0; }
+      .topbar { padding: 12px 18px; }
+      .api-input-wrap { display: none; }
+      .technical-sections { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 700px) {
+      .sidebar { display: none; }
+    }
+
+    /* Comparador técnico */
+    .compare-selector-grid { display: grid; grid-template-columns: minmax(260px,1fr) auto minmax(260px,1fr); gap: 16px; align-items: end; }
+    .compare-swap { margin-bottom: 20px; }
+    .filter-check { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 13px; cursor: pointer; }
+    .compare-header { display: grid; grid-template-columns: 1fr 70px 1fr; gap: 16px; align-items: center; margin-bottom: 14px; }
+    .compare-model-head { display: flex; flex-direction: column; gap: 6px; }
+    .compare-side { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+    .versus { width: 44px; height: 44px; margin: auto; border: 1px solid var(--border2); border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 12px; color: var(--muted); background: var(--surface2); }
+    .compare-section { padding: 0; overflow: hidden; margin-top: 14px; }
+    .compare-section > .card-title { padding: 14px 18px; margin: 0; border-bottom: 1px solid var(--border); background: var(--surface2); }
+    .compare-table { min-width: 700px; }
+    .compare-table th:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); min-width: 190px; }
+    .compare-table thead th { position: sticky; top: 0; z-index: 2; background: var(--surface2); }
+    .compare-table thead th:first-child { z-index: 3; background: var(--surface2); }
+    .compare-table thead th:nth-child(2), .compare-table thead th:nth-child(3) {
+      min-width: 180px; text-align: center; white-space: normal; overflow-wrap: anywhere; line-height: 1.3;
+    }
+    .compare-table td { min-width: 145px; }
+    .compare-table td:nth-child(2), .compare-table td:nth-child(3), .compare-table td:nth-child(4) { text-align: right; }
+    .compare-table tr[data-equal="false"] td, .compare-table tr[data-equal="false"] th { background-color: #FFFBEB; }
+    .compare-table tr[data-equal="false"] th:first-child { background-color: #FFFBEB; }
+    .compare-total th, .compare-total td { font-weight: 700; border-top: 2px solid var(--border2); background: var(--surface2) !important; }
+    .delta-change { font-weight: 600; color: var(--accent-dk); }
+    .delta-zero { color: var(--muted); }
+    .missing-value { color: var(--hint); font-style: italic; }
+    .compact-value { font-size: 18px; line-height: 1.25; overflow-wrap: anywhere; }
+
+    /* Memoria de Ingeniería */
+    .engineering-reminder-summary { display:flex; flex-direction:column; align-items:flex-start; gap:7px; padding:12px; border:1px solid #F1D28B; border-left:3px solid var(--warn); border-radius:var(--r); background:var(--warn-lt); }
+    .engineering-memory { border-left:3px solid var(--warn); }
+    .engineering-reminder-item { display:grid; gap:6px; padding:11px 0; border-bottom:1px solid var(--border); }
+    .engineering-reminder-item > div:first-child { display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
+    .engineering-description { padding:12px; border-left:3px solid var(--accent); background:var(--accent-lt); white-space:pre-wrap; overflow-wrap:anywhere; }
+    .history-layout { display:grid; grid-template-columns:minmax(650px, 1.8fr) minmax(300px, .8fr); gap:12px; align-items:start; }
+    .history-table-card { padding:0; overflow:hidden; }
+    .history-table { min-width:900px; }
+    .history-row { cursor:pointer; }
+    .history-row:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+    .history-row.is-reminder td { background:#FFFBEB; }
+    .compact-empty { padding:20px; }
+    .material-fields-muted { opacity:.65; }
+
+    /* Dotación: consulta y edición */
+    .staff-table th:first-child { width: 45%; }
+    .staff-table td:nth-child(2) { text-align: right; width: 100px; }
+    .staff-share { display: grid; grid-template-columns: minmax(100px,1fr) 60px; align-items: center; gap: 10px; }
+    .staff-share > span { text-align: right; font-family: 'DM Mono', monospace; font-size: 12px; }
+
+    @media (max-width: 900px) {
+      .compare-selector-grid { grid-template-columns: 1fr; }
+      .compare-swap { margin: 0; justify-self: start; }
+      .compare-header { grid-template-columns: 1fr; }
+      .versus { margin: 0; }
+      .history-layout { grid-template-columns:1fr; }
+    }
