@@ -17,6 +17,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field, HttpUrl, field_validator
 
+from history_store import CHANGE_STATUSES, CHANGE_TYPES
+from history_store import create_change as db_create_change
+from history_store import get_change as db_get_change
+from history_store import initialize as initialize_history
+from history_store import list_changes as db_list_changes
+from history_store import update_change as db_update_change
+
 logger = logging.getLogger("bgh_sistema_experto")
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 
@@ -28,6 +35,7 @@ DATA_PATHS = {
     "layouts": BASE_DIR / "layouts.json",
     "tiempos": BASE_DIR / "tiempos_linea.json",
     "modelos": BASE_DIR / "modelos.json",
+    "history": BASE_DIR / "engineering_history.db",
 }
 
 # Alias conservados porque las pruebas y las operaciones administrativas aíslan
@@ -39,6 +47,7 @@ PERSONAL_PATH = DATA_PATHS["personal"]
 LAYOUTS_PATH = DATA_PATHS["layouts"]
 TIEMPOS_PATH = DATA_PATHS["tiempos"]
 MODELOS_PATH = DATA_PATHS["modelos"]
+HISTORY_DB_PATH = DATA_PATHS["history"]
 
 PALLET_COLUMNS = [
     "capacidad", "proveedor", "modelo", "unidades_por_pallet", "capas",
@@ -64,7 +73,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=configured_origins(),
     allow_credentials=False,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Content-Type", "X-API-Key"],
 )
 
@@ -454,6 +463,98 @@ class MasterModel(BaseModel):
     pnb: Optional[str] = None
 
 
+class EngineeringChangeCreate(BaseModel):
+    change_type: str
+    title: str = Field(min_length=1, max_length=180)
+    sector: Optional[str] = Field(default=None, max_length=120)
+    description: str = Field(min_length=1, max_length=4000)
+    old_code: Optional[str] = Field(default=None, max_length=120)
+    new_code: Optional[str] = Field(default=None, max_length=120)
+    reason: Optional[str] = Field(default=None, max_length=2000)
+    status: str = "evaluation"
+    remind_next_production: bool = False
+    created_by: Optional[str] = Field(default=None, max_length=120)
+    notes: Optional[str] = Field(default=None, max_length=2000)
+
+    @field_validator("change_type")
+    @classmethod
+    def validate_change_type(cls, value: str) -> str:
+        if value not in CHANGE_TYPES:
+            raise ValueError("Categoría de cambio inválida")
+        return value
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str) -> str:
+        if value not in CHANGE_STATUSES:
+            raise ValueError("Estado de cambio inválido")
+        return value
+
+    @field_validator("title", "description")
+    @classmethod
+    def required_text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("El texto no puede estar vacío")
+        return value
+
+    @field_validator("sector", "old_code", "new_code", "reason", "created_by", "notes")
+    @classmethod
+    def optional_text(cls, value: Optional[str]) -> Optional[str]:
+        return value.strip() or None if value is not None else None
+
+    model_config = {"extra": "forbid"}
+
+
+class EngineeringChangeUpdate(BaseModel):
+    change_type: Optional[str] = None
+    title: Optional[str] = Field(default=None, min_length=1, max_length=180)
+    sector: Optional[str] = Field(default=None, max_length=120)
+    description: Optional[str] = Field(default=None, min_length=1, max_length=4000)
+    old_code: Optional[str] = Field(default=None, max_length=120)
+    new_code: Optional[str] = Field(default=None, max_length=120)
+    reason: Optional[str] = Field(default=None, max_length=2000)
+    status: Optional[str] = None
+    remind_next_production: Optional[bool] = None
+    created_by: Optional[str] = Field(default=None, max_length=120)
+    notes: Optional[str] = Field(default=None, max_length=2000)
+
+    @field_validator("change_type")
+    @classmethod
+    def validate_change_type(cls, value: Optional[str]) -> Optional[str]:
+        if value is None or value not in CHANGE_TYPES:
+            raise ValueError("Categoría de cambio inválida")
+        return value
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: Optional[str]) -> Optional[str]:
+        if value is None or value not in CHANGE_STATUSES:
+            raise ValueError("Estado de cambio inválido")
+        return value
+
+    @field_validator("title", "description")
+    @classmethod
+    def required_text(cls, value: Optional[str]) -> Optional[str]:
+        if value is None or not value.strip():
+            raise ValueError("El texto no puede estar vacío")
+        return value.strip()
+
+    @field_validator("remind_next_production")
+    @classmethod
+    def required_boolean(cls, value: Optional[bool]) -> Optional[bool]:
+        if value is None:
+            raise ValueError("El recordatorio debe ser verdadero o falso")
+        return value
+
+    @field_validator("sector", "old_code", "new_code", "reason", "created_by", "notes")
+    @classmethod
+    def optional_text(cls, value: Optional[str]) -> Optional[str]:
+        return value.strip() or None if value is not None else None
+
+    model_config = {"extra": "forbid"}
+
+
 def require_admin(x_api_key: Optional[str] = Header(default=None, alias="X-API-Key")) -> bool:
     configured_key = os.getenv("ADMIN_API_KEY")
     if not configured_key:
@@ -588,6 +689,54 @@ def get_model(model_id: str):
 @app.get("/modelos/{model_id}/resumen")
 def get_model_summary(model_id: str):
     return model_summary(resolve_model(model_id))
+
+
+@app.get("/cambios/configuracion")
+def engineering_change_configuration():
+    return {"change_types": CHANGE_TYPES, "statuses": CHANGE_STATUSES}
+
+
+@app.get("/modelos/{model_id}/cambios")
+def get_engineering_changes(
+    model_id: str,
+    status_filter: Optional[str] = Query(default=None, alias="status"),
+    change_type: Optional[str] = Query(default=None),
+    remind_next_production: Optional[bool] = Query(default=None),
+):
+    resolve_model(model_id)
+    if status_filter is not None and status_filter not in CHANGE_STATUSES:
+        raise HTTPException(422, "Estado de cambio inválido")
+    if change_type is not None and change_type not in CHANGE_TYPES:
+        raise HTTPException(422, "Categoría de cambio inválida")
+    return db_list_changes(
+        HISTORY_DB_PATH,
+        model_id,
+        status=status_filter,
+        change_type=change_type,
+        remind_next_production=remind_next_production,
+    )
+
+
+@app.post("/modelos/{model_id}/cambios", dependencies=[Depends(require_admin)], status_code=201)
+def create_engineering_change(model_id: str, body: EngineeringChangeCreate):
+    resolve_model(model_id)
+    return db_create_change(HISTORY_DB_PATH, model_id, body.model_dump())
+
+
+@app.get("/cambios/{change_id}")
+def get_engineering_change(change_id: str):
+    change = db_get_change(HISTORY_DB_PATH, change_id)
+    if not change:
+        raise HTTPException(404, "Cambio de Ingeniería no encontrado")
+    return change
+
+
+@app.patch("/cambios/{change_id}", dependencies=[Depends(require_admin)])
+def update_engineering_change(change_id: str, body: EngineeringChangeUpdate):
+    change = db_update_change(HISTORY_DB_PATH, change_id, body.model_dump(exclude_unset=True))
+    if not change:
+        raise HTTPException(404, "Cambio de Ingeniería no encontrado")
+    return change
 
 
 @app.get("/pallets", response_model=PalletInfo)

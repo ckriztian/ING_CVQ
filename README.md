@@ -163,6 +163,55 @@ Al elegir capacidad, proveedor y modelo en cualquier módulo, la interfaz resuel
 
 Al recargar la página, el frontend comprueba que el ID guardado siga presente en `/modelos`. Si existe, restaura el contexto; si ya no existe, elimina la selección guardada. La Ficha utiliza el resumen consolidado como dashboard mínimo sin reemplazar los demás módulos.
 
+## Memoria de Ingeniería
+
+Los cambios, notas y recordatorios por modelo se guardan exclusivamente en
+`engineering_history.db`, una base SQLite dedicada. El vínculo lógico con el
+catálogo se realiza mediante el `model_id`; antes de crear un cambio, la API
+comprueba que esa identidad exista en `modelos.json`.
+
+La base se inicializa de forma idempotente en el primer acceso y usa una
+conexión por operación, `busy_timeout` y modo WAL. No contiene credenciales ni
+datos ficticios. Las lecturas son públicas dentro del alcance actual de la
+aplicación; crear y editar cambios requiere `X-API-Key`.
+
+Estados disponibles:
+
+- `evaluation`: En evaluación;
+- `active`: Vigente;
+- `superseded`: Reemplazado;
+- `closed`: Cerrado.
+
+Un recordatorio se muestra proactivamente únicamente cuando el cambio está
+`active` y `remind_next_production` es verdadero. Cerrar o reemplazar un cambio
+lo conserva en el historial, pero deja de mostrarlo como recordatorio vigente.
+
+Endpoints:
+
+- `GET /cambios/configuracion`;
+- `GET /modelos/{model_id}/cambios` con filtros `status`, `change_type` y `remind_next_production`;
+- `GET /cambios/{change_id}`;
+- `POST /modelos/{model_id}/cambios` (administración);
+- `PATCH /cambios/{change_id}` (administración).
+
+### Respaldo del historial
+
+`engineering_history.db` y sus archivos WAL están excluidos de Git porque
+pueden contener conocimiento productivo real. La base debe incorporarse al
+esquema corporativo de backups junto con `engineering_history.db-wal` cuando
+este exista. Para una copia consistente con la aplicación en uso se recomienda
+utilizar el mecanismo de backup de SQLite o detener brevemente la aplicación;
+no reemplazar ni sobrescribir la base desde la administración de CSV.
+
+### Validación manual del flujo
+
+1. Seleccionar un Modelo Activo y autenticarse.
+2. Abrir **Cambios de Ingeniería** y registrar un cambio vigente con recordatorio.
+3. Confirmar el historial, la alerta de Home y la sección del Dashboard.
+4. Cambiar de modelo y comprobar que el recordatorio desaparece.
+5. Volver al modelo original, recargar el navegador y reiniciar Uvicorn para
+   confirmar que el cambio reaparece y permanece persistido.
+
 ## Experiencia de consulta de Ingeniería
 
 La pantalla **Inicio** concentra la selección por capacidad, proveedor y modelo,

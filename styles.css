@@ -444,6 +444,21 @@
     .missing-value { color: var(--hint); font-style: italic; }
     .compact-value { font-size: 18px; line-height: 1.25; overflow-wrap: anywhere; }
 
+    /* Memoria de Ingeniería */
+    .engineering-reminder-summary { display:flex; flex-direction:column; align-items:flex-start; gap:7px; padding:12px; border:1px solid #F1D28B; border-left:3px solid var(--warn); border-radius:var(--r); background:var(--warn-lt); }
+    .engineering-memory { border-left:3px solid var(--warn); }
+    .engineering-reminder-item { display:grid; gap:6px; padding:11px 0; border-bottom:1px solid var(--border); }
+    .engineering-reminder-item > div:first-child { display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
+    .engineering-description { padding:12px; border-left:3px solid var(--accent); background:var(--accent-lt); white-space:pre-wrap; overflow-wrap:anywhere; }
+    .history-layout { display:grid; grid-template-columns:minmax(650px, 1.8fr) minmax(300px, .8fr); gap:12px; align-items:start; }
+    .history-table-card { padding:0; overflow:hidden; }
+    .history-table { min-width:900px; }
+    .history-row { cursor:pointer; }
+    .history-row:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+    .history-row.is-reminder td { background:#FFFBEB; }
+    .compact-empty { padding:20px; }
+    .material-fields-muted { opacity:.65; }
+
     /* Dotación: consulta y edición */
     .staff-table th:first-child { width: 45%; }
     .staff-table td:nth-child(2) { text-align: right; width: 100px; }
@@ -455,4 +470,5 @@
       .compare-swap { margin: 0; justify-self: start; }
       .compare-header { grid-template-columns: 1fr; }
       .versus { margin: 0; }
+      .history-layout { grid-template-columns:1fr; }
     }

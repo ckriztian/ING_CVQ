@@ -3,3 +3,6 @@ __pycache__/
 .pytest_cache/
 .venv/
 *.bak
+engineering_history.db
+engineering_history.db-shm
+engineering_history.db-wal

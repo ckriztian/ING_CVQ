@@ -1,5 +1,6 @@
 import asyncio
 import json
+import sqlite3
 import shutil
 from urllib.parse import urlsplit
 
@@ -76,6 +77,9 @@ class AsgiClient:
     def put(self, url, **kwargs):
         return self.request("PUT", url, **kwargs)
 
+    def patch(self, url, **kwargs):
+        return self.request("PATCH", url, **kwargs)
+
     def delete(self, url, **kwargs):
         return self.request("DELETE", url, **kwargs)
 
@@ -110,6 +114,7 @@ def client(tmp_path, monkeypatch):
         (main.norm(item["capacidad"]), main.norm(item["proveedor"]), main.norm(item["modelo"])): item["model_id"]
         for item in models
     })
+    monkeypatch.setattr(main, "HISTORY_DB_PATH", tmp_path / "engineering_history.db")
     monkeypatch.setenv("ADMIN_API_KEY", ADMIN_KEY)
     yield AsgiClient(main.app)
 
@@ -334,3 +339,148 @@ def test_integrity_report_identifies_orphans_and_ambiguities(client):
     assert report["products_without_master_identity"] == []
     assert "9k/midea/inv" in report["specs_without_product"]
     assert "UC.SPL.F/C BSIC35WCLW" in report["duplicate_sku_references"]
+
+
+def engineering_change_payload(**overrides):
+    payload = {
+        "change_type": "material_component",
+        "title": "Cambio de material",
+        "sector": "Tramo 2",
+        "description": "Se reemplaza el material en la fijación superior.",
+        "old_code": "273",
+        "new_code": "263",
+        "reason": "Disponibilidad validada por Ingeniería",
+        "status": "active",
+        "remind_next_production": True,
+        "created_by": "Ingeniería",
+        "notes": "Controlar durante el arranque",
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_history_initialization_creation_read_and_persistence(client):
+    assert not main.HISTORY_DB_PATH.exists()
+    response = client.post("/modelos/mdl_000002/cambios", json=engineering_change_payload(), headers=auth())
+    assert response.status_code == 201
+    change = response.json()
+    assert change["change_id"] == "CHG-000001"
+    assert change["model_id"] == "mdl_000002"
+    assert change["remind_next_production"] is True
+    assert change["created_at"] == change["updated_at"]
+    assert main.HISTORY_DB_PATH.exists()
+    assert client.get("/cambios/CHG-000001").json()["new_code"] == "263"
+    main.initialize_history(main.HISTORY_DB_PATH)
+    assert client.get("/modelos/mdl_000002/cambios").json()[0]["change_id"] == "CHG-000001"
+
+
+def test_history_reads_are_public_and_writes_are_protected(client):
+    assert client.get("/modelos/mdl_000002/cambios").status_code == 200
+    assert client.post("/modelos/mdl_000002/cambios", json=engineering_change_payload()).status_code == 401
+    assert client.post(
+        "/modelos/mdl_000002/cambios", json=engineering_change_payload(), headers={"X-API-Key": "wrong"}
+    ).status_code == 401
+    created = client.post("/modelos/mdl_000002/cambios", json=engineering_change_payload(), headers=auth()).json()
+    assert client.patch(f"/cambios/{created['change_id']}", json={"status": "closed"}).status_code == 401
+    assert client.patch(
+        f"/cambios/{created['change_id']}", json={"status": "closed"}, headers=auth()
+    ).status_code == 200
+
+
+def test_history_patch_is_allowed_by_cors(client):
+    response = client.request(
+        "OPTIONS",
+        "/cambios/CHG-000001",
+        headers={"Origin": "http://127.0.0.1:5500", "Access-Control-Request-Method": "PATCH"},
+    )
+    assert response.status_code == 200
+    assert "PATCH" in response.headers["access-control-allow-methods"]
+
+
+def test_history_rejects_unknown_model_and_invalid_payload(client):
+    assert client.post(
+        "/modelos/mdl_inexistente/cambios", json=engineering_change_payload(), headers=auth()
+    ).status_code == 404
+    assert client.post(
+        "/modelos/mdl_000002/cambios", json=engineering_change_payload(change_type="invented"), headers=auth()
+    ).status_code == 422
+    assert client.post(
+        "/modelos/mdl_000002/cambios", json=engineering_change_payload(title=" "), headers=auth()
+    ).status_code == 422
+
+
+def test_engineering_note_without_material_codes_is_valid(client):
+    response = client.post(
+        "/modelos/mdl_000002/cambios",
+        json=engineering_change_payload(
+            change_type="engineering_observation", old_code=None, new_code=None,
+            title="Posición del sensor", description="Verificar alojamiento antes del cierre.",
+        ),
+        headers=auth(),
+    )
+    assert response.status_code == 201
+    assert response.json()["old_code"] is None
+
+
+def test_active_reminder_filters_and_closing_preserves_history(client):
+    created = client.post(
+        "/modelos/mdl_000002/cambios", json=engineering_change_payload(), headers=auth()
+    ).json()
+    reminders = client.get(
+        "/modelos/mdl_000002/cambios?status=active&remind_next_production=true"
+    ).json()
+    assert [item["change_id"] for item in reminders] == [created["change_id"]]
+    closed = client.patch(
+        f"/cambios/{created['change_id']}", json={"status": "closed"}, headers=auth()
+    ).json()
+    assert closed["status"] == "closed"
+    assert closed["remind_next_production"] is True
+    assert client.get(
+        "/modelos/mdl_000002/cambios?status=active&remind_next_production=true"
+    ).json() == []
+    assert len(client.get("/modelos/mdl_000002/cambios").json()) == 1
+
+
+def test_changes_never_mix_between_models_and_are_recent_first(client):
+    first = client.post(
+        "/modelos/mdl_000002/cambios", json=engineering_change_payload(title="Cambio A"), headers=auth()
+    ).json()
+    second = client.post(
+        "/modelos/mdl_000013/cambios", json=engineering_change_payload(title="Cambio B"), headers=auth()
+    ).json()
+    third = client.post(
+        "/modelos/mdl_000002/cambios", json=engineering_change_payload(title="Cambio C"), headers=auth()
+    ).json()
+    model_a = client.get("/modelos/mdl_000002/cambios").json()
+    model_b = client.get("/modelos/mdl_000013/cambios").json()
+    assert [item["change_id"] for item in model_a] == [third["change_id"], first["change_id"]]
+    assert [item["change_id"] for item in model_b] == [second["change_id"]]
+
+
+def test_history_filters_and_configuration(client):
+    client.post("/modelos/mdl_000002/cambios", json=engineering_change_payload(), headers=auth())
+    client.post(
+        "/modelos/mdl_000002/cambios",
+        json=engineering_change_payload(change_type="process", status="evaluation", remind_next_production=False),
+        headers=auth(),
+    )
+    assert len(client.get("/modelos/mdl_000002/cambios?change_type=process").json()) == 1
+    assert len(client.get("/modelos/mdl_000002/cambios?status=evaluation").json()) == 1
+    config = client.get("/cambios/configuracion").json()
+    assert config["statuses"]["active"] == "Vigente"
+    assert config["change_types"]["material_component"] == "Material / componente"
+
+
+def test_history_schema_has_expected_indexes_and_is_idempotent(client):
+    main.initialize_history(main.HISTORY_DB_PATH)
+    main.initialize_history(main.HISTORY_DB_PATH)
+    with sqlite3.connect(main.HISTORY_DB_PATH) as conn:
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(engineering_changes)")}
+        indexes = {row[1] for row in conn.execute("PRAGMA index_list(engineering_changes)")}
+    assert {"id", "change_id", "model_id", "status", "created_at", "updated_at"} <= columns
+    assert {"idx_changes_model_id", "idx_changes_status", "idx_changes_created_at", "idx_changes_model_reminder"} <= indexes
+
+
+def test_change_id_and_creation_date_cannot_be_overwritten(client):
+    payload = engineering_change_payload(change_id="CHG-999999", created_at="2000-01-01T00:00:00Z")
+    assert client.post("/modelos/mdl_000002/cambios", json=payload, headers=auth()).status_code == 422

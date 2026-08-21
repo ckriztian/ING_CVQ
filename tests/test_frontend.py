@@ -67,6 +67,30 @@ def test_admin_pallet_save_refreshes_master_catalog_and_active_views():
     assert "Catálogo maestro sincronizado" in script
 
 
+def test_engineering_history_navigation_dashboard_and_form_are_present():
+    html = INDEX.read_text(encoding="utf-8")
+    script = inline_javascript()
+    assert 'data-page="changes"' in html
+    assert 'id="page-changes"' in html
+    assert 'id="changes-table-body"' in html
+    assert 'id="change-form"' in html
+    assert 'id="change-reminder"' in html
+    assert "Cambios y recordatorios de Ingeniería" in script
+    assert "loadActiveModelReminders(identity.model_id)" in script
+
+
+def test_engineering_history_uses_model_id_auth_and_safe_rendering():
+    script = inline_javascript()
+    block = script[script.index("// MEMORIA DE INGENIERÍA"):script.index("// COMPARADOR DE MODELOS")]
+    assert "/modelos/${encodeURIComponent(requestedModelId)}/cambios" in block
+    assert "apiAdmin(`/modelos/${encodeURIComponent(activeModel.model_id)}/cambios`" in block
+    assert "apiAdmin(`/cambios/${encodeURIComponent(EDITING_CHANGE_ID)}`" in block
+    assert "localStorage" not in block
+    assert "htmlEscape(item.title)" in block
+    assert "htmlEscape(item.description)" in block
+    assert "innerHTML = ENGINEERING_CHANGES" in block
+
+
 def test_missing_and_warning_states_have_textual_labels():
     script = inline_javascript()
     for label in ["Disponible", "Advertencia", "Faltante", "Sin datos de dotación", "Sin especificaciones"]:

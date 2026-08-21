@@ -55,6 +55,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
         Tiempos
       </button>
+      <button class="nav-item" data-page="changes" onclick="openActivePage('changes')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
+        Cambios de Ingeniería
+      </button>
       <div class="nav-group-label">Herramientas</div>
       <button class="nav-item" data-page="compare" onclick="openComparator()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 7h14l-3-3"/><path d="m21 7-3 3"/><path d="M17 17H3l3 3"/><path d="m3 17 3-3"/></svg>
@@ -260,6 +264,53 @@
         </div>
 
         <div id="specs-result"></div>
+      </div>
+    </div>
+
+    <!-- ══ PAGE: Cambios de Ingeniería ══ -->
+    <div class="page" id="page-changes">
+      <div style="padding:28px">
+        <div class="flex justify-between flex-wrap gap-8">
+          <div><div class="page-title">Cambios de Ingeniería</div><div class="page-sub" id="changes-model-heading">Historial técnico asociado al modelo activo.</div></div>
+          <button class="btn btn-primary hidden" id="new-change-btn" onclick="openChangeForm()">+ Registrar cambio</button>
+        </div>
+        <div class="card mb-12">
+          <div class="grid-3 gap-12">
+            <div class="field"><label for="changes-status-filter">Estado</label><select id="changes-status-filter" onchange="loadEngineeringChanges()"><option value="">Todos</option></select></div>
+            <div class="field"><label for="changes-type-filter">Categoría</label><select id="changes-type-filter" onchange="loadEngineeringChanges()"><option value="">Todas</option></select></div>
+            <div class="field"><label for="changes-reminder-filter">Recordatorio</label><select id="changes-reminder-filter" onchange="loadEngineeringChanges()"><option value="">Todos</option><option value="true">Sí</option><option value="false">No</option></select></div>
+          </div>
+        </div>
+        <div id="changes-message" aria-live="polite"></div>
+        <div class="history-layout">
+          <div class="card history-table-card">
+            <div class="table-scroll"><table class="technical-table history-table"><thead><tr><th>ID</th><th>Estado</th><th>Categoría</th><th>Cambio</th><th>Sector / proceso</th><th>Fecha</th><th>Recordatorio</th></tr></thead><tbody id="changes-table-body"></tbody></table></div>
+          </div>
+          <div class="card" id="change-detail"><div class="empty-state"><strong>Seleccioná un cambio</strong><span>El detalle técnico se mostrará aquí.</span></div></div>
+        </div>
+        <div class="card hidden mt-12" id="change-form-card">
+          <div class="flex justify-between"><div><div class="card-title" id="change-form-title">Registrar cambio</div><div class="text-hint" id="change-form-model"></div></div><span class="badge badge-warn">MODO EDICIÓN</span></div>
+          <form id="change-form" onsubmit="saveEngineeringChange(event)">
+            <div class="grid-3 gap-12 mt-16">
+              <div class="field"><label for="change-type">Categoría *</label><select id="change-type" required onchange="toggleMaterialFields()"></select></div>
+              <div class="field"><label for="change-title">Título *</label><input id="change-title" maxlength="180" required></div>
+              <div class="field"><label for="change-sector">Sector / proceso</label><input id="change-sector" maxlength="120"></div>
+            </div>
+            <div class="field mt-12"><label for="change-description">Descripción *</label><textarea id="change-description" maxlength="4000" rows="4" required></textarea></div>
+            <div class="grid-2 gap-12 mt-12" id="change-material-fields">
+              <div class="field"><label for="change-old-code">Material anterior</label><input id="change-old-code" maxlength="120"><span class="text-hint">Ejemplo de referencia: tornillo 273</span></div>
+              <div class="field"><label for="change-new-code">Material nuevo</label><input id="change-new-code" maxlength="120"><span class="text-hint">Ejemplo de referencia: tornillo 263</span></div>
+            </div>
+            <div class="grid-3 gap-12 mt-12">
+              <div class="field"><label for="change-reason">Motivo</label><textarea id="change-reason" maxlength="2000" rows="3"></textarea></div>
+              <div class="field"><label for="change-created-by">Responsable</label><input id="change-created-by" maxlength="120"></div>
+              <div class="field"><label for="change-status">Estado *</label><select id="change-status" required></select></div>
+            </div>
+            <div class="field mt-12"><label for="change-notes">Observaciones</label><textarea id="change-notes" maxlength="2000" rows="3"></textarea></div>
+            <label class="filter-check mt-12"><input type="checkbox" id="change-reminder"> Recordar en próxima producción</label>
+            <div class="flex gap-8 mt-16"><button class="btn btn-primary" type="submit">Guardar cambio</button><button class="btn" type="button" onclick="closeChangeForm()">Cancelar</button></div>
+          </form>
+        </div>
       </div>
     </div>
 
@@ -527,6 +578,7 @@ const PAGE_TITLES = {
   specs: 'Especificaciones técnicas',
   layouts: 'Layouts por modelo',
   tiempos: 'Tiempos por puesto',
+  changes: 'Cambios de Ingeniería',
   compare: 'Comparar modelos',
   admin: 'Administración',
 };
@@ -581,6 +633,7 @@ let activeModel = null;
 let SYNCING_ACTIVE = false;
 let LINEAS    = ['L01', 'L03'];
 let INTEGRITY = null;
+let ACTIVE_ENGINEERING_CHANGES = [];
 
 async function loadCatalogo() {
   try {
@@ -703,6 +756,7 @@ function setActiveModel(identity, persist = true) {
   document.getElementById('change-model-btn').classList.remove('hidden');
   if (persist) sessionStorage.setItem('ACTIVE_MODEL_ID', identity.model_id);
   renderHomeActiveModel();
+  loadActiveModelReminders(identity.model_id);
   return true;
 }
 
@@ -722,6 +776,7 @@ function changeActiveModel() {
   document.getElementById('active-model-indicator').classList.remove('ok');
   document.getElementById('change-model-btn').classList.add('hidden');
   renderHomeActiveModel();
+  ACTIVE_ENGINEERING_CHANGES = [];
   switchPage('home', document.querySelector('[data-page="home"]'));
   document.getElementById('h-cap').focus();
 }
@@ -749,7 +804,7 @@ function openActivePage(page) {
   }
   const button = document.querySelector(`[data-page="${page}"]`);
   if (!switchPage(page, button)) return;
-  const loaders = {ficha: showFicha, specs: showSpecs, pallets: showPallet, personal: loadPersonal, layouts: showLayout, tiempos: loadTiempos};
+  const loaders = {ficha: showFicha, specs: showSpecs, pallets: showPallet, personal: loadPersonal, layouts: showLayout, tiempos: loadTiempos, changes: loadEngineeringChanges};
   if (loaders[page]) loaders[page]();
 }
 
@@ -791,7 +846,21 @@ function renderHomeActiveModel() {
     <div class="model-code">${htmlEscape(activeModel.sku_bgh || 'SKU no registrado')}</div>
     ${activeModel.pnb ? `<span class="badge badge-blue mt-12">${htmlEscape(activeModel.pnb)}</span>` : ''}
     <div class="text-hint mt-12">${htmlEscape(activeModel.model_id)}</div>
+    <div id="home-engineering-reminders" class="mt-12"></div>
     <button class="btn btn-primary mt-16" onclick="openActiveDashboard()">Abrir ficha de ingeniería</button>`;
+}
+
+async function loadActiveModelReminders(modelId) {
+  try {
+    const changes = await api(`/modelos/${encodeURIComponent(modelId)}/cambios?status=active&remind_next_production=true`);
+    if (!activeModel || activeModel.model_id !== modelId) return;
+    ACTIVE_ENGINEERING_CHANGES = changes;
+    const target = document.getElementById('home-engineering-reminders');
+    if (target) target.innerHTML = changes.length ? `<div class="engineering-reminder-summary"><strong>⚠ ${changes.length} cambio${changes.length === 1 ? '' : 's'} vigente${changes.length === 1 ? '' : 's'}</strong><span>Hay información que debe revisarse antes de producir este modelo.</span><button class="btn btn-sm" onclick="openActivePage('changes')">Ver cambios</button></div>` : '';
+  } catch (error) {
+    const target = document.getElementById('home-engineering-reminders');
+    if (target && activeModel?.model_id === modelId) target.innerHTML = alert_html('err', htmlEscape(error.message));
+  }
 }
 
 async function loadHomeMetrics() {
@@ -966,12 +1035,16 @@ async function showFicha() {
   const identity = activeModelForSelection('f');
   if (!identity) { el.innerHTML = alert_html('err', 'El modelo no existe en el catálogo maestro.'); return; }
   try {
-    const summary = await api(`/modelos/${encodeURIComponent(identity.model_id)}/resumen`);
-    el.innerHTML = renderModelSummary(summary);
+    await ensureChangeConfiguration();
+    const [summary, changes] = await Promise.all([
+      api(`/modelos/${encodeURIComponent(identity.model_id)}/resumen`),
+      api(`/modelos/${encodeURIComponent(identity.model_id)}/cambios`),
+    ]);
+    el.innerHTML = renderModelSummary(summary, changes);
   } catch(e) { el.innerHTML = alert_html('err', e.message); }
 }
 
-function renderModelSummary(summary) {
+function renderModelSummary(summary, engineeringChanges = []) {
   const identity = summary.identity;
   const pallet = summary.palletizacion;
   const personal = summary.personal;
@@ -994,6 +1067,10 @@ function renderModelSummary(summary) {
     specLines.length ? ['Líneas', specLines.join(', '), `${specLines.length} configuración(es)`] : null,
     firstSpec?.refrigerante ? ['Refrigerante', firstSpec.refrigerante, 'ficha técnica'] : null,
   ].filter(Boolean).map(([label, value, unit]) => `<div class="metric"><div class="metric-label">${htmlEscape(label)}</div><div class="metric-value" style="font-size:20px">${htmlEscape(value)}</div><div class="metric-sub">${htmlEscape(unit)}</div></div>`).join('');
+  const activeChanges = engineeringChanges.filter(item => item.status === 'active');
+  const reminders = activeChanges.filter(item => item.remind_next_production);
+  const reminderItems = reminders.slice(0, 5).map(item => `<div class="engineering-reminder-item"><div><span class="badge badge-warn">⚠ ${htmlEscape(changeTypeLabel(item.change_type))}</span><strong>${htmlEscape(item.title)}</strong></div><div class="text-muted">${htmlEscape(item.description)}</div><div class="text-hint">Vigente desde: ${htmlEscape(formatHistoryDate(item.created_at))}</div></div>`).join('');
+  const engineeringSection = `<div class="card mt-12 engineering-memory"><div class="flex justify-between flex-wrap gap-8"><div class="card-title">Cambios y recordatorios de Ingeniería</div><button class="btn btn-sm" onclick="openActivePage('changes')">Ver historial completo</button></div><div class="grid-3 gap-12"><div class="metric"><div class="metric-value">${engineeringChanges.length}</div><div class="metric-label">Cambios registrados</div></div><div class="metric"><div class="metric-value">${activeChanges.length}</div><div class="metric-label">Vigentes</div></div><div class="metric"><div class="metric-value">${reminders.length}</div><div class="metric-label">Recordatorios</div></div></div>${reminders.length ? `<div class="card-title mt-20">⚠ A considerar en próxima producción</div>${reminderItems}` : `<div class="empty-state compact-empty"><strong>Sin recordatorios vigentes</strong><span>${engineeringChanges.length ? 'El historial no contiene recordatorios activos.' : 'Sin cambios de Ingeniería registrados para este modelo.'}</span>${getAdminKey() ? '<button class="btn btn-sm" onclick="openActivePage(\'changes\'); openChangeForm()">Registrar primer cambio</button>' : ''}</div>`}</div>`;
 
   return `
     <div class="card" style="border-left:3px solid var(--accent)">
@@ -1012,13 +1089,14 @@ function renderModelSummary(summary) {
         <button class="btn btn-sm" onclick="openActivePage('personal')">Ver dotación</button>
         <button class="btn btn-sm" onclick="openActivePage('layouts')">Ver layout</button>
         <button class="btn btn-sm" onclick="openActivePage('tiempos')">Ver tiempos</button>
+        <button class="btn btn-sm" onclick="openActivePage('changes')">Ver cambios de Ingeniería</button>
       </div>
       <hr>
       <div class="card-title">Estado de información</div>
       <div class="grid-auto mb-12">${statusBadges}</div>
       <div class="card-title mt-20">Métricas disponibles</div>
       <div class="grid-auto">${metrics || '<span class="text-muted">No hay métricas disponibles.</span>'}</div>
-    </div>`;
+    </div>${engineeringSection}`;
 }
 
 function renderFicha(info, per, cap, prov, mod, layout = null) {
@@ -1652,6 +1730,9 @@ async function adminLogin() {
     setAdminStatus('Conectado', 'ok');
     loadIntegrityPanel();
     if (document.getElementById('page-personal').classList.contains('active')) loadPersonal();
+    if (document.getElementById('page-changes').classList.contains('active')) loadEngineeringChanges();
+    renderHomeActiveModel();
+    if (activeModel) loadActiveModelReminders(activeModel.model_id);
   } catch (e) {
     setAdminKey('');
     document.getElementById('admin-panel').classList.add('hidden');
@@ -1690,6 +1771,10 @@ function adminLogout() {
   clearGrid('pallet'); clearGrid('specs');
   setAdminStatus('Desconectado');
   if (document.getElementById('page-personal').classList.contains('active')) loadPersonal();
+  closeChangeForm();
+  if (document.getElementById('page-changes').classList.contains('active')) loadEngineeringChanges();
+  renderHomeActiveModel();
+  if (activeModel) loadActiveModelReminders(activeModel.model_id);
 }
 
 function switchAdminTab(which) {
@@ -1951,6 +2036,141 @@ function loadSpecsText() { loadSpecsGrid(); }
 function saveSpecsText() { saveSpecsGrid(); }
 function exportCsv() {}
 function importFile() {}
+
+// ================================
+// MEMORIA DE INGENIERÍA
+// ================================
+let CHANGE_CONFIG = {change_types:{}, statuses:{}};
+let ENGINEERING_CHANGES = [];
+let EDITING_CHANGE_ID = null;
+
+function changeTypeLabel(value) { return CHANGE_CONFIG.change_types[value] || value || 'Sin categoría'; }
+function changeStatusLabel(value) { return CHANGE_CONFIG.statuses[value] || value || 'Sin estado'; }
+function formatHistoryDate(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : new Intl.DateTimeFormat('es-AR', {dateStyle:'short', timeStyle:'short'}).format(date);
+}
+
+async function ensureChangeConfiguration() {
+  if (Object.keys(CHANGE_CONFIG.change_types).length) return;
+  CHANGE_CONFIG = await api('/cambios/configuracion');
+  const fill = (id, values, emptyLabel) => {
+    const select = document.getElementById(id);
+    const current = select.value;
+    select.innerHTML = emptyLabel ? `<option value="">${emptyLabel}</option>` : '';
+    Object.entries(values).forEach(([value, label]) => select.add(new Option(label, value)));
+    if ([...select.options].some(option => option.value === current)) select.value = current;
+  };
+  fill('changes-status-filter', CHANGE_CONFIG.statuses, 'Todos');
+  fill('changes-type-filter', CHANGE_CONFIG.change_types, 'Todas');
+  fill('change-type', CHANGE_CONFIG.change_types, '');
+  fill('change-status', CHANGE_CONFIG.statuses, '');
+}
+
+async function loadEngineeringChanges() {
+  if (!activeModel) return;
+  const requestedModelId = activeModel.model_id;
+  const message = document.getElementById('changes-message');
+  try {
+    await ensureChangeConfiguration();
+    document.getElementById('changes-model-heading').textContent = `${activeModel.capacidad.toUpperCase()} · ${activeModel.proveedor.toUpperCase()} · ${activeModel.modelo.toUpperCase()} · ${activeModel.sku_bgh || 'SKU no registrado'} · ${activeModel.model_id}`;
+    document.getElementById('new-change-btn').classList.toggle('hidden', !getAdminKey());
+    const params = new URLSearchParams();
+    const statusFilter = document.getElementById('changes-status-filter').value;
+    const typeFilter = document.getElementById('changes-type-filter').value;
+    const reminderFilter = document.getElementById('changes-reminder-filter').value;
+    if (statusFilter) params.set('status', statusFilter);
+    if (typeFilter) params.set('change_type', typeFilter);
+    if (reminderFilter) params.set('remind_next_production', reminderFilter);
+    const changes = await api(`/modelos/${encodeURIComponent(requestedModelId)}/cambios?${params}`);
+    if (!activeModel || activeModel.model_id !== requestedModelId) return;
+    ENGINEERING_CHANGES = changes;
+    renderEngineeringChanges();
+    message.innerHTML = '';
+  } catch (error) { message.innerHTML = alert_html('err', htmlEscape(error.message)); }
+}
+
+function renderEngineeringChanges() {
+  const body = document.getElementById('changes-table-body');
+  body.innerHTML = ENGINEERING_CHANGES.length ? ENGINEERING_CHANGES.map(item => `<tr class="history-row${item.status === 'active' && item.remind_next_production ? ' is-reminder' : ''}" tabindex="0" onclick="showEngineeringChange('${htmlEscape(item.change_id)}')" onkeydown="if(event.key==='Enter')showEngineeringChange('${htmlEscape(item.change_id)}')"><td><code>${htmlEscape(item.change_id)}</code></td><td>${htmlEscape(changeStatusLabel(item.status))}</td><td>${htmlEscape(changeTypeLabel(item.change_type))}</td><td>${htmlEscape(item.title)}</td><td>${htmlEscape(item.sector || '—')}</td><td>${htmlEscape(formatHistoryDate(item.created_at))}</td><td>${item.remind_next_production ? '⚠ Sí' : '— No'}</td></tr>`).join('') : `<tr><td colspan="7"><div class="empty-state compact-empty"><strong>Sin cambios de Ingeniería registrados para este modelo.</strong><span>La memoria técnica comenzará cuando se registre el primer cambio.</span>${getAdminKey() ? '<button class="btn btn-sm" onclick="openChangeForm()">Registrar primer cambio</button>' : ''}</div></td></tr>`;
+  document.getElementById('change-detail').innerHTML = '<div class="empty-state"><strong>Seleccioná un cambio</strong><span>El detalle técnico se mostrará aquí.</span></div>';
+}
+
+function showEngineeringChange(changeId) {
+  const item = ENGINEERING_CHANGES.find(change => change.change_id === changeId);
+  if (!item) return;
+  const detailRows = [
+    ['Estado',changeStatusLabel(item.status)],['Categoría',changeTypeLabel(item.change_type)],['Sector / proceso',item.sector],
+    ['Material anterior',item.old_code],['Material nuevo',item.new_code],['Motivo',item.reason],
+    ['Creado',formatHistoryDate(item.created_at)],['Actualizado',formatHistoryDate(item.updated_at)],
+    ['Responsable',item.created_by],['Recordar próxima producción',item.remind_next_production ? 'Sí' : 'No'],['Observaciones',item.notes],
+  ];
+  document.getElementById('change-detail').innerHTML = `<div class="flex justify-between gap-8"><div><div class="card-title">${htmlEscape(item.change_id)}</div><div class="fw-600">${htmlEscape(item.title)}</div></div>${getAdminKey() ? `<button class="btn btn-sm" onclick="openChangeForm('${htmlEscape(item.change_id)}')">Editar</button>` : ''}</div><div class="engineering-description mt-16">${htmlEscape(item.description)}</div><div class="kv mt-16">${detailRows.filter(([,value])=>value !== null && value !== undefined && value !== '').map(([label,value])=>`<div class="kv-row"><span>${htmlEscape(label)}</span><span>${htmlEscape(value)}</span></div>`).join('')}</div>`;
+}
+
+async function openChangeForm(changeId = null) {
+  if (!getAdminKey() || !activeModel) return;
+  await ensureChangeConfiguration();
+  const item = changeId ? ENGINEERING_CHANGES.find(change => change.change_id === changeId) : null;
+  EDITING_CHANGE_ID = item?.change_id || null;
+  document.getElementById('change-form').reset();
+  document.getElementById('change-form-title').textContent = item ? `Editar ${item.change_id}` : 'Registrar cambio';
+  document.getElementById('change-form-model').textContent = `Modelo fijo: ${activeModel.capacidad.toUpperCase()} · ${activeModel.proveedor.toUpperCase()} · ${activeModel.modelo.toUpperCase()} · ${activeModel.model_id}`;
+  document.getElementById('change-type').value = item?.change_type || 'engineering_observation';
+  document.getElementById('change-title').value = item?.title || '';
+  document.getElementById('change-sector').value = item?.sector || '';
+  document.getElementById('change-description').value = item?.description || '';
+  document.getElementById('change-old-code').value = item?.old_code || '';
+  document.getElementById('change-new-code').value = item?.new_code || '';
+  document.getElementById('change-reason').value = item?.reason || '';
+  document.getElementById('change-created-by').value = item?.created_by || '';
+  document.getElementById('change-status').value = item?.status || 'evaluation';
+  document.getElementById('change-notes').value = item?.notes || '';
+  document.getElementById('change-reminder').checked = Boolean(item?.remind_next_production);
+  toggleMaterialFields();
+  document.getElementById('change-form-card').classList.remove('hidden');
+  document.getElementById('change-title').focus();
+}
+
+function toggleMaterialFields() {
+  document.getElementById('change-material-fields').classList.toggle('material-fields-muted', document.getElementById('change-type').value !== 'material_component');
+}
+
+function closeChangeForm() {
+  EDITING_CHANGE_ID = null;
+  document.getElementById('change-form').reset();
+  document.getElementById('change-form-card').classList.add('hidden');
+}
+
+function changeFormPayload() {
+  const value = id => document.getElementById(id).value.trim() || null;
+  return {
+    change_type: document.getElementById('change-type').value,
+    title: value('change-title'), sector: value('change-sector'), description: value('change-description'),
+    old_code: value('change-old-code'), new_code: value('change-new-code'), reason: value('change-reason'),
+    status: document.getElementById('change-status').value,
+    remind_next_production: document.getElementById('change-reminder').checked,
+    created_by: value('change-created-by'), notes: value('change-notes'),
+  };
+}
+
+async function saveEngineeringChange(event) {
+  event.preventDefault();
+  if (!activeModel || !getAdminKey()) return;
+  const message = document.getElementById('changes-message');
+  try {
+    const wasEditing = Boolean(EDITING_CHANGE_ID);
+    const item = EDITING_CHANGE_ID
+      ? await apiAdmin(`/cambios/${encodeURIComponent(EDITING_CHANGE_ID)}`, 'PATCH', changeFormPayload())
+      : await apiAdmin(`/modelos/${encodeURIComponent(activeModel.model_id)}/cambios`, 'POST', changeFormPayload());
+    closeChangeForm();
+    await loadEngineeringChanges();
+    await loadActiveModelReminders(activeModel.model_id);
+    message.innerHTML = alert_html('ok', `Cambio ${htmlEscape(item.change_id)} ${wasEditing ? 'actualizado' : 'registrado'} correctamente.`);
+    if (document.getElementById('page-ficha').classList.contains('active')) await showFicha();
+  } catch (error) { message.innerHTML = alert_html('err', htmlEscape(error.message)); }
+}
 
 // ================================
 // COMPARADOR DE MODELOS
