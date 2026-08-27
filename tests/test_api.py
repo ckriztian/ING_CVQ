@@ -115,12 +115,52 @@ def client(tmp_path, monkeypatch):
         for item in models
     })
     monkeypatch.setattr(main, "HISTORY_DB_PATH", tmp_path / "engineering_history.db")
+    monkeypatch.setattr(main, "WORK_INSTRUCTIONS_DB_PATH", tmp_path / "work_instructions.db")
+    monkeypatch.setattr(main, "WORK_INSTRUCTION_FILES_PATH", tmp_path / "work_instruction_files")
     monkeypatch.setenv("ADMIN_API_KEY", ADMIN_KEY)
     yield AsgiClient(main.app)
 
 
 def auth():
     return {"X-API-Key": ADMIN_KEY}
+
+
+def work_instruction_payload(**overrides):
+    values = {
+        "document_code": "BSIP IT TEST", "revision_code": "R0", "status": "draft",
+        "area": "A. A.", "process": "Montaje", "title": "Fijación",
+        "prepared_by": "Ingeniería", "reviewed_by": "Calidad", "approved_by": None,
+        "document_date": "2026-08-27", "distribution": "L3",
+        "steps": [{"instruction": "Tomar componente.", "observation": None, "warning": None}],
+        "materials": [], "tools": [], "epp": [],
+    }
+    values.update(overrides)
+    return values
+
+
+def test_work_instruction_api_security_revisions_and_export_503(client):
+    body = work_instruction_payload()
+    assert client.post("/modelos/mdl_000002/instrucciones", json=body).status_code == 401
+    created = client.post("/modelos/mdl_000002/instrucciones", json=body, headers=auth())
+    assert created.status_code == 201
+    assert created.json()["instruction_id"] == "IT-000001"
+    assert client.get("/instrucciones").json()[0]["model_id"] == "mdl_000002"
+    assert client.get("/modelos/mdl_000002/instrucciones").json()[0]["document_code"] == "BSIP IT TEST"
+    assert client.patch("/instrucciones/IT-000001/revisiones/R0", json={"title": "Sin permiso"}).status_code == 401
+    patched = client.patch("/instrucciones/IT-000001/revisiones/R0", json={"title": "Título actualizado"}, headers=auth())
+    assert patched.status_code == 200 and patched.json()["current_revision"]["title"] == "Título actualizado"
+    assert client.post("/instrucciones/IT-000001/revisiones", json={"revision_code": "R1"}, headers=auth()).status_code == 201
+    activated = client.post("/instrucciones/IT-000001/revisiones/R1/activar", headers=auth())
+    assert activated.status_code == 200
+    assert sum(x["status"] == "active" for x in activated.json()["revisions"]) == 1
+    export = client.get("/instrucciones/IT-000001/exportar")
+    assert export.status_code == 503 and "todavía no está disponible" in export.json()["detail"]
+
+
+def test_work_instruction_api_rejects_unknown_model_and_epp(client):
+    assert client.post("/modelos/mdl_missing/instrucciones", json=work_instruction_payload(), headers=auth()).status_code == 404
+    bad = work_instruction_payload(epp=[{"name": "Casco inventado", "selected": True}])
+    assert client.post("/modelos/mdl_000002/instrucciones", json=bad, headers=auth()).status_code == 422
 
 
 def test_health(client):

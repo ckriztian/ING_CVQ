@@ -217,8 +217,9 @@ si algún elemento desaparece o cambia silenciosamente, `openpyxl` no puede ser
 el mecanismo que abra y vuelva a guardar el paquete completo. La copia limpia
 sí retirará de forma **intencional y selectiva** las cinco fotografías y los 10
 shapes/conectores del ejemplo, pero conservará los elementos corporativos, en
-especial los ocho iconos EPP y sus binarios originales. Hasta completar la
-prueba no se debe comenzar frontend, SQLite ni generación de archivos.
+especial los ocho iconos EPP y sus binarios originales. Esta limitación bloquea
+únicamente el motor Excel y su validación; no bloquea el gestor, su frontend ni
+la persistencia SQLite desacoplada.
 
 ## Alcance funcional acordado para la implementación posterior
 

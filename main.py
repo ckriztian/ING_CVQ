@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import shutil
+import sqlite3
 import tempfile
 import unicodedata
 from datetime import date
@@ -14,7 +15,7 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel, Field, HttpUrl, field_validator
 
 from history_store import CHANGE_STATUSES, CHANGE_TYPES
@@ -23,6 +24,16 @@ from history_store import get_change as db_get_change
 from history_store import initialize as initialize_history
 from history_store import list_changes as db_list_changes
 from history_store import update_change as db_update_change
+from work_instruction_exporter import exporter as work_instruction_exporter
+from work_instruction_store import EPP_OPTIONS, REVISION_STATUSES
+from work_instruction_store import activate_revision as db_activate_revision
+from work_instruction_store import create_instruction as db_create_instruction
+from work_instruction_store import get_instruction as db_get_instruction
+from work_instruction_store import list_instructions as db_list_instructions
+from work_instruction_store import new_revision as db_new_revision
+from work_instruction_store import save_step_image as db_save_step_image
+from work_instruction_store import update_instruction as db_update_instruction
+from work_instruction_store import update_revision as db_update_revision
 
 logger = logging.getLogger("bgh_sistema_experto")
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
@@ -36,6 +47,8 @@ DATA_PATHS = {
     "tiempos": BASE_DIR / "tiempos_linea.json",
     "modelos": BASE_DIR / "modelos.json",
     "history": BASE_DIR / "engineering_history.db",
+    "work_instructions": BASE_DIR / "work_instructions.db",
+    "work_instruction_files": BASE_DIR / "data" / "work_instructions",
 }
 
 # Alias conservados porque las pruebas y las operaciones administrativas aíslan
@@ -48,6 +61,8 @@ LAYOUTS_PATH = DATA_PATHS["layouts"]
 TIEMPOS_PATH = DATA_PATHS["tiempos"]
 MODELOS_PATH = DATA_PATHS["modelos"]
 HISTORY_DB_PATH = DATA_PATHS["history"]
+WORK_INSTRUCTIONS_DB_PATH = DATA_PATHS["work_instructions"]
+WORK_INSTRUCTION_FILES_PATH = DATA_PATHS["work_instruction_files"]
 
 PALLET_COLUMNS = [
     "capacidad", "proveedor", "modelo", "unidades_por_pallet", "capas",
@@ -555,6 +570,91 @@ class EngineeringChangeUpdate(BaseModel):
     model_config = {"extra": "forbid"}
 
 
+class WorkStep(BaseModel):
+    instruction: str = Field(default="", max_length=10_000)
+    observation: Optional[str] = Field(default=None, max_length=4000)
+    warning: Optional[str] = Field(default=None, max_length=4000)
+
+
+class WorkMaterial(BaseModel):
+    reference: Optional[str] = Field(default=None, max_length=120)
+    description: str = Field(min_length=1, max_length=500)
+    code: Optional[str] = Field(default=None, max_length=120)
+    quantity: str = Field(min_length=1, max_length=80)
+    notes: Optional[str] = Field(default=None, max_length=1000)
+
+
+class WorkTool(BaseModel):
+    description: str = Field(min_length=1, max_length=500)
+    specification: Optional[str] = Field(default=None, max_length=1000)
+    quantity: str = Field(min_length=1, max_length=80)
+
+
+class WorkEpp(BaseModel):
+    name: str
+    selected: bool = False
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        if value not in EPP_OPTIONS:
+            raise ValueError("EPP no reconocido")
+        return value
+
+
+class WorkInstructionCreate(BaseModel):
+    document_code: str = Field(min_length=1, max_length=120)
+    revision_code: str = Field(default="R0", min_length=1, max_length=30)
+    status: str = "draft"
+    area: str = Field(min_length=1, max_length=120)
+    process: str = Field(min_length=1, max_length=200)
+    title: str = Field(min_length=1, max_length=300)
+    prepared_by: str = Field(min_length=1, max_length=120)
+    reviewed_by: str = Field(min_length=1, max_length=120)
+    approved_by: Optional[str] = Field(default=None, max_length=120)
+    document_date: date
+    distribution: Optional[str] = Field(default=None, max_length=1000)
+    steps: List[WorkStep] = Field(default_factory=list, max_length=500)
+    materials: List[WorkMaterial] = Field(default_factory=list, max_length=500)
+    tools: List[WorkTool] = Field(default_factory=list, max_length=500)
+    epp: List[WorkEpp] = Field(default_factory=list, max_length=len(EPP_OPTIONS))
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str) -> str:
+        if value not in REVISION_STATUSES:
+            raise ValueError("Estado de revisión inválido")
+        return value
+
+
+class WorkInstructionUpdate(BaseModel):
+    document_code: Optional[str] = Field(default=None, min_length=1, max_length=120)
+
+
+class WorkRevisionUpdate(BaseModel):
+    area: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    process: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    title: Optional[str] = Field(default=None, min_length=1, max_length=300)
+    prepared_by: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    reviewed_by: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    approved_by: Optional[str] = Field(default=None, max_length=120)
+    document_date: Optional[date] = None
+    distribution: Optional[str] = Field(default=None, max_length=1000)
+    steps: Optional[List[WorkStep]] = Field(default=None, max_length=500)
+    materials: Optional[List[WorkMaterial]] = Field(default=None, max_length=500)
+    tools: Optional[List[WorkTool]] = Field(default=None, max_length=500)
+    epp: Optional[List[WorkEpp]] = Field(default=None, max_length=len(EPP_OPTIONS))
+
+
+class NewWorkRevision(BaseModel):
+    revision_code: str = Field(min_length=1, max_length=30)
+
+
+class WorkImageUpload(BaseModel):
+    mime_type: str
+    data_base64: str = Field(min_length=1, max_length=14_000_000)
+
+
 def require_admin(x_api_key: Optional[str] = Header(default=None, alias="X-API-Key")) -> bool:
     configured_key = os.getenv("ADMIN_API_KEY")
     if not configured_key:
@@ -737,6 +837,119 @@ def update_engineering_change(change_id: str, body: EngineeringChangeUpdate):
     if not change:
         raise HTTPException(404, "Cambio de Ingeniería no encontrado")
     return change
+
+
+@app.get("/instrucciones/configuracion")
+def work_instruction_configuration():
+    return {"revision_statuses": REVISION_STATUSES, "epp": EPP_OPTIONS}
+
+
+@app.get("/instrucciones")
+def get_work_instructions():
+    return db_list_instructions(WORK_INSTRUCTIONS_DB_PATH)
+
+
+@app.get("/modelos/{model_id}/instrucciones")
+def get_model_work_instructions(model_id: str):
+    resolve_model(model_id)
+    return db_list_instructions(WORK_INSTRUCTIONS_DB_PATH, model_id)
+
+
+@app.post("/modelos/{model_id}/instrucciones", dependencies=[Depends(require_admin)], status_code=201)
+def create_work_instruction(model_id: str, body: WorkInstructionCreate):
+    resolve_model(model_id)
+    try:
+        return db_create_instruction(WORK_INSTRUCTIONS_DB_PATH, model_id, body.model_dump(mode="json"))
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@app.get("/instrucciones/{instruction_id}")
+def get_work_instruction(instruction_id: str):
+    item = db_get_instruction(WORK_INSTRUCTIONS_DB_PATH, instruction_id)
+    if not item:
+        raise HTTPException(404, "Instrucción de Trabajo no encontrada")
+    return item
+
+
+@app.patch("/instrucciones/{instruction_id}", dependencies=[Depends(require_admin)])
+def update_work_instruction(instruction_id: str, body: WorkInstructionUpdate):
+    item = db_update_instruction(WORK_INSTRUCTIONS_DB_PATH, instruction_id, body.model_dump(exclude_unset=True))
+    if not item:
+        raise HTTPException(404, "Instrucción de Trabajo no encontrada")
+    return item
+
+
+@app.get("/instrucciones/{instruction_id}/revisiones")
+def get_work_instruction_revisions(instruction_id: str):
+    return get_work_instruction(instruction_id)["revisions"]
+
+
+@app.post("/instrucciones/{instruction_id}/revisiones", dependencies=[Depends(require_admin)], status_code=201)
+def create_work_instruction_revision(instruction_id: str, body: NewWorkRevision):
+    try:
+        item = db_new_revision(WORK_INSTRUCTIONS_DB_PATH, instruction_id, body.revision_code)
+    except sqlite3.IntegrityError as exc:
+        raise HTTPException(409, "La revisión ya existe") from exc
+    if not item:
+        raise HTTPException(404, "Instrucción de Trabajo no encontrada")
+    return item
+
+
+@app.patch("/instrucciones/{instruction_id}/revisiones/{revision_code}", dependencies=[Depends(require_admin)])
+def update_work_instruction_revision(instruction_id: str, revision_code: str, body: WorkRevisionUpdate):
+    values = body.model_dump(exclude_unset=True, mode="json")
+    try:
+        item = db_update_revision(WORK_INSTRUCTIONS_DB_PATH, instruction_id, revision_code, values)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    if not item:
+        raise HTTPException(404, "Revisión no encontrada")
+    return item
+
+
+@app.post("/instrucciones/{instruction_id}/revisiones/{revision_code}/activar", dependencies=[Depends(require_admin)])
+def activate_work_instruction_revision(instruction_id: str, revision_code: str):
+    try:
+        item = db_activate_revision(WORK_INSTRUCTIONS_DB_PATH, instruction_id, revision_code)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    if not item:
+        raise HTTPException(404, "Revisión no encontrada")
+    return item
+
+
+@app.post("/instrucciones/{instruction_id}/revisiones/{revision_code}/procedimientos/{position}/imagen",
+          dependencies=[Depends(require_admin)], status_code=201)
+def upload_work_instruction_image(instruction_id: str, revision_code: str, position: int, body: WorkImageUpload):
+    try:
+        return db_save_step_image(WORK_INSTRUCTIONS_DB_PATH, WORK_INSTRUCTION_FILES_PATH, instruction_id,
+                                  revision_code, position, body.mime_type, body.data_base64)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.get("/instrucciones/{instruction_id}/revisiones/{revision_code}/procedimientos/{position}/imagen")
+def get_work_instruction_image(instruction_id: str, revision_code: str, position: int):
+    item = get_work_instruction(instruction_id)
+    revision = next((x for x in item["revisions"] if x["revision_code"] == revision_code), None)
+    step = next((x for x in revision["steps"] if x["position"] == position), None) if revision else None
+    if not step or not step["image"]:
+        raise HTTPException(404, "Imagen no encontrada")
+    target = (WORK_INSTRUCTION_FILES_PATH / step["image"]["relative_path"]).resolve()
+    if WORK_INSTRUCTION_FILES_PATH.resolve() not in target.parents or not target.is_file():
+        raise HTTPException(404, "Imagen no encontrada")
+    return FileResponse(target, media_type=step["image"]["mime_type"])
+
+
+@app.get("/instrucciones/{instruction_id}/exportar")
+def export_work_instruction(instruction_id: str):
+    item = get_work_instruction(instruction_id)
+    if not work_instruction_exporter.available():
+        raise HTTPException(503, "La exportación Excel todavía no está disponible en este entorno.")
+    return FileResponse(work_instruction_exporter.export(item))
 
 
 @app.get("/pallets", response_model=PalletInfo)

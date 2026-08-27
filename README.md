@@ -253,3 +253,21 @@ validada en memoria. Guardar continúa usando el `POST /personal` protegido,
 recarga la fuente y vuelve a consulta; cancelar o navegar con cambios pendientes
 solicita confirmación. Un administrador puede iniciar una dotación vacía, pero
 el sistema no inventa sectores.
+
+## Gestor de Instrucciones de Trabajo
+
+El módulo **Instrucciones de Trabajo** separa el identificador interno
+`IT-000001` del código documental corporativo y persiste el contenido en
+`work_instructions.db`, sin utilizar la base de Memoria de Ingeniería. Las
+lecturas son públicas dentro de la aplicación y todas las escrituras reutilizan
+la autenticación `X-API-Key`.
+
+Cada revisión conserva procedimientos ordenados, materiales, herramientas, EPP
+e imágenes opcionales guardadas bajo `data/work_instructions/`. Publicar una
+revisión es transaccional: la revisión activa anterior pasa a `obsolete` y la
+nueva `draft` pasa a `active`. El editor ofrece acciones rápidas, plantillas de
+frase, duplicación y reordenamiento, y una vista previa HTML.
+
+`work_instruction_exporter.py` define el adaptador del exportador sin importar
+`openpyxl` ni automatización de Office. Hasta validar un motor en Windows, el
+endpoint de exportación responde HTTP 503 de manera controlada.
