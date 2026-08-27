@@ -1,6 +1,7 @@
 """Exportador desacoplado de Instrucciones de Trabajo mediante Excel COM."""
 
 import importlib
+import logging
 import math
 import platform
 import re
@@ -14,7 +15,6 @@ from typing import Any, Dict, Optional, Protocol
 EXPORT_UNAVAILABLE = "La exportación Excel todavía no está disponible en este entorno."
 PROCEDURE_SHEET = "Fijación cable de masa."
 PROCEDURES_PER_PAGE = 2  # confirmado por los bloques C:Q y R:AF de la hoja auditada
-MAX_MATERIALS = 4
 MAX_TOOLS = 4
 EXAMPLE_PROCEDURE_OBJECTS = {
     "Imagen 72", "Imagen 75", "Imagen 67", "Imagen 63", "Imagen 59",
@@ -23,10 +23,35 @@ EXAMPLE_PROCEDURE_OBJECTS = {
     "Flecha a la derecha con bandas 40", "Rectángulo 91", "Conector: angular 92",
 }
 EPP_MARK_CELLS = {
-    "Pulsera": "A42", "Talonera": "E42", "Cofia": "I42", "Guantes": "M42",
-    "Zapatos de Seguridad": "Q42", "Protección Auditiva": "U42",
-    "Anteojos de Seguridad": "Y42", "Máscara de seguridad": "AC42",
+    "Pulsera": "A42:B42", "Talonera": "E42:F42", "Cofia": "I42:J42", "Guantes": "M42:N42",
+    "Zapatos de Seguridad": "Q42:R42", "Protección Auditiva": "U42:V42",
+    "Anteojos de Seguridad": "Y42:Z42", "Máscara de seguridad": "AC42:AD42",
 }
+
+logger = logging.getLogger("bgh_sistema_experto.work_instruction_exporter")
+
+HEADER_MAP = {
+    "document_code": "I1:L1", "area": "A4:B5", "model": "C4:H5", "process": "I3:L3",
+    "prepared_by": "O2:P2", "reviewed_by": "S2:T2", "prepared_date": "O3:P3",
+    "reviewed_date": "S3:T3", "distribution": "U3:Y3", "title": "M4:Y5",
+    "revision": "AC5:AF5", "page": "Z5", "page_total": "AB5", "approved_by": "M1:Y1",
+}
+PROCEDURE_SLOTS = (
+    {"title": "C6:Q6", "image": "C7:Q29", "instruction": "C30:Q30", "observation": "C31:Q31", "warning": "C32:Q32"},
+    {"title": "R6:AF6", "image": "R7:AF29", "instruction": "R30:AF30", "observation": "R31:AF31", "warning": "R32:AF32"},
+)
+TOOL_MAP = {
+    row: {"description": f"C{row}:G{row}", "specification": f"H{row}:N{row}", "quantity": f"O{row}:P{row}"}
+    for row in (37, 38, 39, 40)
+}
+# La primera fila visual de materiales ocupa 37:38. S38, T38:Z38 y AE38
+# no son otra fila: pertenecen a MergeAreas ancladas en la fila 37.
+MATERIAL_MAP = {
+    0: {"reference": "S37:S38", "description": "T37:Z38", "code": "AA37:AD37", "quantity": "AE37:AF38"},
+    1: {"reference": "S39", "description": "T39:Z39", "code": "AA39:AD39", "quantity": "AE39:AF39"},
+    2: {"reference": "S40", "description": "T40:Z40", "code": "AA40:AD40", "quantity": "AE40:AF40"},
+}
+MAX_MATERIALS = len(MATERIAL_MAP)
 
 
 class ExportError(RuntimeError):
@@ -35,6 +60,57 @@ class ExportError(RuntimeError):
 
 class BackendUnavailableError(ExportError):
     pass
+
+
+class CellOperationError(ExportError):
+    def __init__(self, operation: str, field: str, sheet: str, address: str, cause: Exception):
+        self.operation, self.field, self.sheet, self.address = operation, field, sheet, address
+        action = "escribiendo" if operation == "write" else "limpiando"
+        super().__init__(f"Error {action} campo '{field}' en hoja '{sheet}', rango '{address}': {cause}")
+
+
+def _sheet_name(worksheet: Any) -> str:
+    try:
+        return str(worksheet.Name)
+    except Exception:
+        return "<desconocida>"
+
+
+def _range_target(worksheet: Any, address: str) -> tuple[Any, Any, bool]:
+    cell_range = worksheet.Range(address)
+    merged = bool(cell_range.MergeCells)
+    target = cell_range.MergeArea.Cells(1, 1) if merged else cell_range
+    return cell_range, target, merged
+
+
+def _set_cell_value(worksheet: Any, address: str, value: Any, field: str) -> None:
+    sheet = _sheet_name(worksheet)
+    try:
+        _, target, merged = _range_target(worksheet, address)
+        logger.debug("Excel COM write field=%s sheet=%s range=%s merged=%s", field, sheet, address, merged)
+        target.Value = value
+    except Exception as exc:
+        if isinstance(exc, CellOperationError):
+            raise
+        raise CellOperationError("write", field, sheet, address, exc) from exc
+
+
+def _clear_cell(worksheet: Any, address: str, field: str, cleared_merge_areas: Optional[set[str]] = None) -> None:
+    sheet = _sheet_name(worksheet)
+    try:
+        cell_range, _, merged = _range_target(worksheet, address)
+        clear_target = cell_range.MergeArea if merged else cell_range
+        merge_key = str(clear_target.Address) if merged else ""
+        logger.debug("Excel COM clear field=%s sheet=%s range=%s merged=%s", field, sheet, address, merged)
+        if merged and cleared_merge_areas is not None and merge_key in cleared_merge_areas:
+            return
+        clear_target.ClearContents()
+        if merged and cleared_merge_areas is not None:
+            cleared_merge_areas.add(merge_key)
+    except Exception as exc:
+        if isinstance(exc, CellOperationError):
+            raise
+        raise CellOperationError("clear", field, sheet, address, exc) from exc
 
 
 class WorkInstructionExporter(Protocol):
@@ -144,6 +220,9 @@ class ExcelComWorkInstructionExporter:
             return output_path
         except BackendUnavailableError:
             raise
+        except ExportError:
+            output_path.unlink(missing_ok=True)
+            raise
         except Exception as exc:
             output_path.unlink(missing_ok=True)
             raise ExportError(f"No se pudo generar el Excel: {exc}") from exc
@@ -199,37 +278,42 @@ class ExcelComWorkInstructionExporter:
             shape = worksheet.Shapes.Item(index)
             if shape.Name in EXAMPLE_PROCEDURE_OBJECTS:
                 shape.Delete()
-        for address in ("C30", "C31", "C32", "C33", "R30", "R31", "R32", "R33", "C34"):
-            worksheet.Range(address).ClearContents()
+        cleared_merge_areas: set[str] = set()
+        cleanup = {
+            "procedure_1_instruction": "C30:Q30", "procedure_1_observation": "C31:Q31",
+            "procedure_1_warning": "C32:Q32", "procedure_1_extra": "C33:Q33",
+            "procedure_2_instruction": "R30:AF30", "procedure_2_observation": "R31:AF31",
+            "procedure_2_warning": "R32:AF32", "procedure_2_extra": "R33:AF33",
+            "general_warning": "C34:AF35",
+        }
+        for field, address in cleanup.items():
+            _clear_cell(worksheet, address, field, cleared_merge_areas)
 
     @staticmethod
     def _write_header(worksheet: Any, instruction: Dict[str, Any], revision: Dict[str, Any], page: int, total: int) -> None:
         values = {
-            "I1": f"N° {instruction['document_code']}", "A4": revision["area"],
-            "C4": instruction.get("model_label", instruction["model_id"]), "I3": revision["process"],
-            "O2": revision["prepared_by"], "S2": revision["reviewed_by"],
-            "O3": revision["document_date"], "S3": revision["document_date"],
-            "U3": revision.get("distribution") or "", "M4": revision["title"],
-            "AC5": revision["revision_code"], "Z5": page, "AB5": total,
+            "document_code": f"N° {instruction['document_code']}", "area": revision["area"],
+            "model": instruction.get("model_label", instruction["model_id"]), "process": revision["process"],
+            "prepared_by": revision["prepared_by"], "reviewed_by": revision["reviewed_by"],
+            "prepared_date": revision["document_date"], "reviewed_date": revision["document_date"],
+            "distribution": revision.get("distribution") or "", "title": revision["title"],
+            "revision": revision["revision_code"], "page": page, "page_total": total,
         }
         if revision.get("approved_by"):
-            values["M1"] = f"APROBADO POR INGENIERÍA DE PRODUCCIÓN · {revision['approved_by']}"
-        for cell, value in values.items():
-            worksheet.Range(cell).Value = value
+            values["approved_by"] = f"APROBADO POR INGENIERÍA DE PRODUCCIÓN · {revision['approved_by']}"
+        for field, value in values.items():
+            _set_cell_value(worksheet, HEADER_MAP[field], value, field)
 
     def _write_procedures(self, worksheet: Any, revision: Dict[str, Any], page_number: int) -> None:
         start = (page_number - 1) * PROCEDURES_PER_PAGE
         steps = revision.get("steps", [])[start:start + PROCEDURES_PER_PAGE]
-        slots = (
-            {"title": "C6", "image": "C7:Q29", "instruction": "C30", "observation": "C31", "warning": "C32"},
-            {"title": "R6", "image": "R7:AF29", "instruction": "R30", "observation": "R31", "warning": "R32"},
-        )
-        for slot_index, slot in enumerate(slots):
+        for slot_index, slot in enumerate(PROCEDURE_SLOTS):
             absolute = start + slot_index
             step = steps[slot_index] if slot_index < len(steps) else None
-            worksheet.Range(slot["title"]).Value = f"PASO {absolute + 1}" if step else ""
+            prefix = f"procedure_{absolute + 1}"
+            _set_cell_value(worksheet, slot["title"], f"PASO {absolute + 1}" if step else "", f"{prefix}_title")
             for field in ("instruction", "observation", "warning"):
-                worksheet.Range(slot[field]).Value = (step.get(field) or "") if step else ""
+                _set_cell_value(worksheet, slot[field], (step.get(field) or "") if step else "", f"{prefix}_{field}")
             if step and step.get("image"):
                 self._insert_image(worksheet, slot["image"], step["image"])
 
@@ -251,25 +335,23 @@ class ExcelComWorkInstructionExporter:
 
     @staticmethod
     def _write_materials(worksheet: Any, materials: list[Dict[str, Any]]) -> None:
-        for offset in range(MAX_MATERIALS):
-            row = 37 + offset
+        for offset, field_map in MATERIAL_MAP.items():
             item = materials[offset] if offset < len(materials) else {}
-            for column, field in (("S", "reference"), ("T", "description"), ("AA", "code"), ("AE", "quantity")):
-                worksheet.Range(f"{column}{row}").Value = item.get(field, "")
+            for field, address in field_map.items():
+                _set_cell_value(worksheet, address, item.get(field, ""), f"material_{offset + 1}_{field}")
 
     @staticmethod
     def _write_tools(worksheet: Any, tools: list[Dict[str, Any]]) -> None:
-        for offset in range(MAX_TOOLS):
-            row = 37 + offset
+        for offset, (row, field_map) in enumerate(TOOL_MAP.items()):
             item = tools[offset] if offset < len(tools) else {}
-            for column, field in (("C", "description"), ("H", "specification"), ("O", "quantity")):
-                worksheet.Range(f"{column}{row}").Value = item.get(field, "")
+            for field, address in field_map.items():
+                _set_cell_value(worksheet, address, item.get(field, ""), f"tool_{offset + 1}_{field}")
 
     @staticmethod
     def _write_epp(worksheet: Any, epp: list[Dict[str, Any]]) -> None:
         selected = {item["name"]: bool(item.get("selected")) for item in epp}
         for name, cell in EPP_MARK_CELLS.items():
-            worksheet.Range(cell).Value = "x" if selected.get(name, False) else ""
+            _set_cell_value(worksheet, cell, "x" if selected.get(name, False) else "", f"epp_{name}")
 
 
 class UnavailableExporter:

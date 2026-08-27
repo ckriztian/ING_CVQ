@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from work_instruction_exporter import ExcelComWorkInstructionExporter  # noqa: E402
+from work_instruction_exporter import CellOperationError, ExcelComWorkInstructionExporter  # noqa: E402
 
 
 def fixture() -> dict:
@@ -45,7 +45,16 @@ def main() -> int:
         print(f"ERROR: {detail}")
         return 1
     output_dir = ROOT / "exports_test"
-    output = exporter.export(fixture(), "R_TEST", output_dir)
+    try:
+        output = exporter.export(fixture(), "R_TEST", output_dir)
+    except CellOperationError as exc:
+        print("ERROR DE ESCRITURA COM")
+        print(f"Campo: {exc.field}")
+        print(f"Hoja: {exc.sheet}")
+        print(f"Rango: {exc.address}")
+        print(f"Operación: {exc.operation}")
+        print(f"Detalle: {exc}")
+        return 1
 
     # Segunda apertura independiente: comprueba que Excel reconoce el resultado.
     import pythoncom

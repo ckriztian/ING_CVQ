@@ -4,7 +4,8 @@ from types import SimpleNamespace
 import pytest
 
 import work_instruction_exporter as module
-from work_instruction_exporter import ExcelComWorkInstructionExporter, ExportError, safe_filename
+from work_instruction_exporter import CellOperationError, ExcelComWorkInstructionExporter, ExportError
+from work_instruction_exporter import _clear_cell, _set_cell_value, safe_filename
 
 
 def instruction(step_count=3):
@@ -18,10 +19,28 @@ def instruction(step_count=3):
             "document_code": "BSIP IT UOA4874", "current_revision": revision, "revisions": [revision]}
 
 
+class FakeCells:
+    def __init__(self, anchor): self.anchor = anchor
+    def __call__(self, row, column):
+        assert (row, column) == (1, 1)
+        return self.anchor
+
+
 class FakeRange:
     Left, Top, Width, Height = 0, 0, 500, 300
-    def __init__(self): self.Value = None
-    def ClearContents(self): self.Value = None
+    def __init__(self, address="", merged=False, merge_area=None):
+        self.Value, self.Address, self.MergeCells = None, address, merged
+        self.clear_count = 0
+        self.MergeArea = merge_area or self
+        self.Cells = FakeCells(self)
+    def ClearContents(self): self.Value = None; self.clear_count += 1
+
+
+class FakeMergeArea(FakeRange):
+    def __init__(self, address):
+        super().__init__(address)
+        self.anchor = FakeRange(address.split(":")[0])
+        self.Cells = FakeCells(self.anchor)
 
 
 class FakeShape:
@@ -39,7 +58,7 @@ class FakeShapes:
 class FakeSheet:
     def __init__(self, excel, name=module.PROCEDURE_SHEET):
         self.excel, self.Name, self.Shapes, self.cells = excel, name, FakeShapes(), {}
-    def Range(self, address): return self.cells.setdefault(address, FakeRange())
+    def Range(self, address): return self.cells.setdefault(address, FakeRange(address))
     def Copy(self, After=None):
         copied = FakeSheet(self.excel)
         self.excel.workbook.sheets.append(copied)
@@ -114,6 +133,64 @@ def test_com_export_copies_template_paginates_cleans_and_quits(monkeypatch, tmp_
 def test_capacity_errors_are_explicit(tmp_path):
     exporter = ExcelComWorkInstructionExporter(tmp_path / "template.xlsx", tmp_path)
     data = instruction(1)
-    data["current_revision"]["materials"] = [{"description": "x"}] * 5
-    with pytest.raises(ExportError, match="4 materiales"):
+    data["current_revision"]["materials"] = [{"description": "x"}] * 4
+    with pytest.raises(ExportError, match="3 materiales"):
         exporter._validate_capacity(data["current_revision"])
+
+
+def test_safe_write_supports_normal_and_merged_cells_without_unmerge():
+    worksheet = FakeSheet(None, "IT")
+    normal = FakeRange("A1")
+    area = FakeMergeArea("B2:D2")
+    merged = FakeRange("C2", merged=True, merge_area=area)
+    worksheet.cells.update({"A1": normal, "B2:D2": merged})
+    _set_cell_value(worksheet, "A1", "normal", "normal_field")
+    _set_cell_value(worksheet, "B2:D2", "merged", "merged_field")
+    assert normal.Value == "normal"
+    assert area.anchor.Value == "merged"
+    assert not hasattr(area, "UnMerge") and not hasattr(merged, "UnMerge")
+
+
+def test_safe_clear_uses_merge_area_once_and_normal_range_once():
+    worksheet = FakeSheet(None, "IT")
+    normal = FakeRange("A1")
+    area = FakeMergeArea("B2:D2")
+    merged_a = FakeRange("B2", merged=True, merge_area=area)
+    merged_b = FakeRange("C2", merged=True, merge_area=area)
+    worksheet.cells.update({"A1": normal, "B2": merged_a, "C2": merged_b})
+    cleared = set()
+    _clear_cell(worksheet, "A1", "normal", cleared)
+    _clear_cell(worksheet, "B2", "merged_a", cleared)
+    _clear_cell(worksheet, "C2", "merged_b", cleared)
+    assert normal.clear_count == 1 and area.clear_count == 1
+
+
+def test_cell_error_contains_operation_context():
+    worksheet = FakeSheet(None, "IT Página 1")
+    broken = FakeRange("C30:Q30")
+    broken.MergeCells = True
+    broken.MergeArea = property(lambda self: None)
+    worksheet.cells["C30:Q30"] = broken
+    with pytest.raises(CellOperationError) as caught:
+        _set_cell_value(worksheet, "C30:Q30", "text", "procedure_1_instruction")
+    assert caught.value.field == "procedure_1_instruction"
+    assert caught.value.sheet == "IT Página 1"
+    assert caught.value.address == "C30:Q30"
+    assert caught.value.operation == "write"
+
+
+def test_procedures_materials_tools_and_pagination_use_safe_writer(monkeypatch):
+    calls = []
+    monkeypatch.setattr(module, "_set_cell_value", lambda ws, address, value, field: calls.append((address, field, value)))
+    exporter = ExcelComWorkInstructionExporter(Path("template"), Path("images"))
+    data = instruction(2); revision = data["current_revision"]
+    revision["materials"] = [{"reference": "a", "description": "Tornillo", "code": "1", "quantity": "2"}]
+    revision["tools"] = [{"description": "Atornilladora", "specification": "PH2", "quantity": "1"}]
+    worksheet = FakeSheet(None, "IT")
+    exporter._write_header(worksheet, data, revision, 1, 2)
+    exporter._write_procedures(worksheet, revision, 1)
+    exporter._write_materials(worksheet, revision["materials"])
+    exporter._write_tools(worksheet, revision["tools"])
+    fields = {field for _, field, _ in calls}
+    assert {"page", "page_total", "procedure_1_instruction", "material_1_description", "tool_1_description"} <= fields
+    assert ("T37:Z38", "material_1_description", "Tornillo") in calls
