@@ -64,6 +64,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 7h14l-3-3"/><path d="m21 7-3 3"/><path d="M17 17H3l3 3"/><path d="m3 17 3-3"/></svg>
         Comparar modelos
       </button>
+      <button class="nav-item" data-page="instructions" onclick="openWorkInstructions(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h12v18H6z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>
+        Instrucciones de Trabajo
+      </button>
       <div class="nav-group-label">Administración</div>
       <button class="nav-item" data-page="admin" onclick="switchPage('admin', this)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 1 0 21 12"/><path d="M12 12l9-9"/></svg>
@@ -539,6 +543,45 @@
       </div>
     </div>
 
+    <!-- ══ PAGE: Instrucciones de Trabajo ══ -->
+    <div class="page" id="page-instructions">
+      <div style="padding:28px">
+        <div class="flex justify-between flex-wrap gap-8">
+          <div><div class="page-title">Instrucciones de Trabajo</div><div class="page-sub">Gestión estructurada, revisiones y vista previa antes de exportar.</div></div>
+          <div class="flex gap-8"><button class="btn btn-primary" onclick="newWorkInstruction()">+ Nueva IT</button><button class="btn" onclick="showInstructionLibrary()">Biblioteca</button></div>
+        </div>
+        <div id="wi-message" class="mt-12" aria-live="polite"></div>
+        <section id="wi-library" class="card mt-12">
+          <div class="card-title">Biblioteca</div>
+          <div class="grid-3 gap-12 wi-filters">
+            <div class="field"><label>Buscar código o título</label><input id="wi-search" oninput="renderInstructionLibrary()"></div>
+            <div class="field"><label>Modelo</label><select id="wi-model-filter" onchange="renderInstructionLibrary()"></select></div>
+            <div class="field"><label>Proceso</label><input id="wi-process-filter" oninput="renderInstructionLibrary()"></div>
+            <div class="field"><label>Capacidad</label><select id="wi-cap-filter" onchange="renderInstructionLibrary()"></select></div>
+            <div class="field"><label>Proveedor</label><select id="wi-provider-filter" onchange="renderInstructionLibrary()"></select></div>
+            <div class="field"><label>Estado</label><select id="wi-status-filter" onchange="renderInstructionLibrary()"><option value="">Todos</option><option>draft</option><option>active</option><option>obsolete</option></select></div>
+          </div>
+          <div class="table-wrap mt-12"><table><thead><tr><th>Código IT</th><th>Modelo</th><th>Proceso</th><th>Revisión vigente</th><th>Estado</th><th>Última actualización</th></tr></thead><tbody id="wi-library-body"></tbody></table></div>
+        </section>
+        <section id="wi-editor" class="hidden mt-12">
+          <div class="card flex justify-between flex-wrap gap-8"><div><div class="card-title" id="wi-editor-title">Nueva IT</div><span class="badge" id="wi-mode">MODO EDICIÓN</span></div><div class="flex gap-8"><button class="btn hidden" id="wi-edit-btn" onclick="enableInstructionEdit()">Editar IT</button><button class="btn btn-primary" id="wi-save-btn" onclick="saveWorkInstruction()">Guardar</button><button class="btn" onclick="showInstructionLibrary()">Cerrar</button></div></div>
+          <div class="wi-tabs mt-12"><a href="#wi-info">Información</a><a href="#wi-steps">Procedimientos</a><a href="#wi-materials">Materiales</a><a href="#wi-tools">Herramientas</a><a href="#wi-epp">Seguridad / EPP</a><a href="#wi-revision">Revisión</a><a href="#wi-preview">Vista previa</a></div>
+          <div class="card mt-12" id="wi-info"><div class="card-title">Información</div><div class="grid-3 gap-12">
+            <div class="field"><label>Modelo</label><select id="wi-model"></select></div><div class="field"><label>Código IT</label><input id="wi-code"></div><div class="field"><label>Fecha</label><input type="date" id="wi-date"></div>
+            <div class="field"><label>Área</label><input id="wi-area"></div><div class="field"><label>Proceso</label><input id="wi-process"></div><div class="field"><label>Título / contenido</label><input id="wi-title"></div>
+            <div class="field"><label>Realizó</label><input id="wi-prepared"></div><div class="field"><label>Revisó</label><input id="wi-reviewed"></div><div class="field"><label>Aprobó (opcional)</label><input id="wi-approved"></div>
+            <div class="field"><label>Distribución</label><input id="wi-distribution"></div><div class="field"><label>Revisión</label><input id="wi-revision-code" value="R0"></div><div class="field"><label>Procedimientos iniciales</label><select id="wi-initial-count" onchange="setInitialWorkStepCount(this.value)"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></div>
+          </div></div>
+          <div class="card mt-12" id="wi-steps"><div class="flex justify-between"><div class="card-title">Procedimientos</div><button class="btn" onclick="addWorkStep()">+ Agregar procedimiento</button></div><div class="wi-writing-help"><b>Acciones rápidas</b><div id="wi-action-chips"></div><select id="wi-phrase-template" onchange="insertPhraseTemplate(this.value);this.value=''"><option value="">Plantillas de frase…</option><option value="Tomar [cantidad] [elemento] y fijar [pieza] mediante [cantidad] tornillos.">Fijación</option><option value="Tomar [cable/conector], rutear según imagen y conectar en [posición].">Conexión</option><option value="Posicionar [pieza] en [ubicación] y asegurar su correcta fijación.">Montaje</option><option value="Verificar correcta posición y fijación de [elemento].">Verificación</option></select></div><div id="wi-step-list"></div></div>
+          <div class="card mt-12" id="wi-materials"><div class="flex justify-between"><div class="card-title">Materiales</div><button class="btn" onclick="addWorkMaterial()">+ Agregar material</button></div><div id="wi-material-list"></div></div>
+          <div class="card mt-12" id="wi-tools"><div class="flex justify-between"><div class="card-title">Herramientas</div><button class="btn" onclick="addWorkTool()">+ Agregar herramienta</button></div><div id="wi-tool-list"></div></div>
+          <div class="card mt-12" id="wi-epp"><div class="card-title">Seguridad / EPP</div><div id="wi-epp-list" class="wi-epp-grid"></div></div>
+          <div class="card mt-12" id="wi-revision"><div class="card-title">Revisión</div><div id="wi-revision-history"></div><div class="flex gap-8 mt-12"><input id="wi-new-revision" placeholder="Ej: R1"><button class="btn" id="wi-new-revision-btn" onclick="createWorkRevision()">Crear nueva revisión</button><button class="btn btn-ok" id="wi-activate-revision-btn" onclick="activateWorkRevision()">Activar revisión actual</button></div></div>
+          <div class="card mt-12" id="wi-preview"><div class="flex justify-between"><div class="card-title">Vista previa</div><button class="btn" onclick="renderWorkPreview()">Actualizar vista previa</button></div><div id="wi-preview-content"></div><button class="btn mt-12" onclick="exportWorkInstruction()">Exportar Excel</button></div>
+        </section>
+      </div>
+    </div>
+
     <!-- ══ PAGE: Comparador ══ -->
     <div class="page" id="page-compare">
       <div style="padding:28px">
@@ -580,6 +623,7 @@ const PAGE_TITLES = {
   tiempos: 'Tiempos por puesto',
   changes: 'Cambios de Ingeniería',
   compare: 'Comparar modelos',
+  instructions: 'Instrucciones de Trabajo',
   admin: 'Administración',
 };
 function switchPage(id, btn) {
@@ -2528,6 +2572,66 @@ async function reloadTiempos() {
     alertEl.innerHTML = alert_html('ok', `Tiempos recargados. Registros: ${d.rows}`);
   } catch(e) { alertEl.innerHTML = alert_html('err', e.message); }
 }
+
+/* ── Gestor de Instrucciones de Trabajo ── */
+const WI_ACTIONS = ['Tomar','Posicionar','Colocar','Fijar','Atornillar','Sujetar','Conectar','Rutear','Verificar','Asegurar','Insertar','Ajustar','Presionar','Retirar'];
+const WI_EPP = ['Pulsera','Talonera','Cofia','Guantes','Zapatos de Seguridad','Protección Auditiva','Anteojos de Seguridad','Máscara de seguridad'];
+let WI_LIBRARY = [], WI_CURRENT = null, WI_EDITING = false, WI_ACTIVE_TEXTAREA = null, WI_PENDING_IMAGES = new Map();
+
+function modelLabel(item) { return `${item.capacidad.toUpperCase()} · ${item.proveedor.toUpperCase()} · ${item.modelo.toUpperCase()}`; }
+async function openWorkInstructions(btn) { switchPage('instructions', btn); await loadInstructionLibrary(); }
+async function loadInstructionLibrary() {
+  try {
+    WI_LIBRARY = await api('/instrucciones');
+    const modelOptions = '<option value="">Todos</option>' + MASTER_MODELS.map(m => `<option value="${m.model_id}">${htmlEscape(modelLabel(m))}</option>`).join('');
+    document.getElementById('wi-model-filter').innerHTML = modelOptions;
+    document.getElementById('wi-model').innerHTML = MASTER_MODELS.map(m => `<option value="${m.model_id}">${htmlEscape(modelLabel(m))}</option>`).join('');
+    document.getElementById('wi-cap-filter').innerHTML = '<option value="">Todas</option>' + [...new Set(MASTER_MODELS.map(m=>m.capacidad))].map(x=>`<option>${htmlEscape(x)}</option>`).join('');
+    document.getElementById('wi-provider-filter').innerHTML = '<option value="">Todos</option>' + [...new Set(MASTER_MODELS.map(m=>m.proveedor))].map(x=>`<option>${htmlEscape(x)}</option>`).join('');
+    renderInstructionLibrary();
+  } catch(e) { document.getElementById('wi-message').innerHTML = alert_html('err', htmlEscape(e.message)); }
+}
+function renderInstructionLibrary() {
+  const q=(document.getElementById('wi-search').value||'').toLowerCase(), mid=document.getElementById('wi-model-filter').value;
+  const process=(document.getElementById('wi-process-filter').value||'').toLowerCase(), cap=document.getElementById('wi-cap-filter').value, prov=document.getElementById('wi-provider-filter').value, status=document.getElementById('wi-status-filter').value;
+  const rows=WI_LIBRARY.filter(x=>{const m=MASTER_MODELS.find(v=>v.model_id===x.model_id)||{};return (!q||`${x.document_code} ${x.title}`.toLowerCase().includes(q))&&(!mid||x.model_id===mid)&&(!process||x.process.toLowerCase().includes(process))&&(!cap||m.capacidad===cap)&&(!prov||m.proveedor===prov)&&(!status||x.status===status)});
+  document.getElementById('wi-library-body').innerHTML = rows.map(x=>{const m=MASTER_MODELS.find(v=>v.model_id===x.model_id);return `<tr class="history-row" onclick="openInstruction('${x.instruction_id}')"><td><code>${htmlEscape(x.document_code)}</code></td><td>${htmlEscape(m?modelLabel(m):x.model_id)}</td><td>${htmlEscape(x.process)}</td><td>${htmlEscape(x.current_revision||'—')}</td><td><span class="badge">${htmlEscape(x.status)}</span></td><td>${htmlEscape(x.updated_at)}</td></tr>`}).join('') || '<tr><td colspan="6">No hay instrucciones registradas.</td></tr>';
+}
+function showInstructionLibrary(){document.getElementById('wi-library').classList.remove('hidden');document.getElementById('wi-editor').classList.add('hidden');loadInstructionLibrary()}
+function blankStep(){return {instruction:'',observation:'',warning:''}}
+function setInitialWorkStepCount(value){if(!WI_CURRENT)renderWorkSteps(Array.from({length:Number(value)||1},blankStep))}
+function newWorkInstruction(){
+  WI_CURRENT=null;WI_EDITING=true;WI_PENDING_IMAGES.clear();document.getElementById('wi-library').classList.add('hidden');document.getElementById('wi-editor').classList.remove('hidden');document.getElementById('wi-editor-title').textContent='Nueva IT';
+  ['code','area','process','title','prepared','reviewed','approved','distribution'].forEach(x=>document.getElementById('wi-'+x).value='');
+  document.getElementById('wi-date').value=new Date().toISOString().slice(0,10);document.getElementById('wi-revision-code').value='R0';if(activeModel)document.getElementById('wi-model').value=activeModel.model_id;
+  const count=Number(document.getElementById('wi-initial-count').value||1);renderWorkSteps(Array.from({length:count},blankStep));renderWorkMaterials([]);renderWorkTools([]);renderWorkEpp([]);renderRevisionHistory([]);setInstructionMode(true);renderWorkPreview();
+}
+async function openInstruction(id){try{WI_CURRENT=await api(`/instrucciones/${id}`);WI_EDITING=false;WI_PENDING_IMAGES.clear();document.getElementById('wi-library').classList.add('hidden');document.getElementById('wi-editor').classList.remove('hidden');loadInstructionIntoEditor(WI_CURRENT);setInstructionMode(false)}catch(e){document.getElementById('wi-message').innerHTML=alert_html('err',htmlEscape(e.message))}}
+function loadInstructionIntoEditor(item){const r=item.current_revision;document.getElementById('wi-editor-title').textContent=`${item.document_code} · ${item.instruction_id}`;document.getElementById('wi-model').value=item.model_id;document.getElementById('wi-code').value=item.document_code;document.getElementById('wi-date').value=r.document_date;document.getElementById('wi-area').value=r.area;document.getElementById('wi-process').value=r.process;document.getElementById('wi-title').value=r.title;document.getElementById('wi-prepared').value=r.prepared_by;document.getElementById('wi-reviewed').value=r.reviewed_by;document.getElementById('wi-approved').value=r.approved_by||'';document.getElementById('wi-distribution').value=r.distribution||'';document.getElementById('wi-revision-code').value=r.revision_code;renderWorkSteps(r.steps);renderWorkMaterials(r.materials);renderWorkTools(r.tools);renderWorkEpp(r.epp);renderRevisionHistory(item.revisions);renderWorkPreview()}
+function setInstructionMode(editing){WI_EDITING=editing;document.getElementById('wi-mode').textContent=editing?'MODO EDICIÓN':'MODO CONSULTA';document.getElementById('wi-save-btn').classList.toggle('hidden',!editing);document.getElementById('wi-edit-btn').classList.toggle('hidden',editing||!getAdminKey());const consultationActions=['wi-edit-btn','wi-new-revision','wi-new-revision-btn','wi-activate-revision-btn'];document.querySelectorAll('#wi-editor input,#wi-editor select,#wi-editor textarea,#wi-editor button').forEach(el=>{if(!consultationActions.includes(el.id)&&!el.textContent.includes('Cerrar')&&!el.textContent.includes('Vista previa')&&!el.textContent.includes('Exportar'))el.disabled=!editing});consultationActions.slice(1).forEach(id=>document.getElementById(id).disabled=!editing&&!getAdminKey())}
+function enableInstructionEdit(){if(!getAdminKey())return;const r=WI_CURRENT.current_revision;if(r.status!=='draft'){document.getElementById('wi-message').innerHTML=alert_html('warn','Solo las revisiones draft pueden editarse. Cree una nueva revisión.');return}setInstructionMode(true)}
+function renderWorkSteps(steps){document.getElementById('wi-step-list').innerHTML=(steps||[]).map((s,i)=>`<div class="wi-step" data-index="${i}"><div class="flex justify-between"><b>PROCEDIMIENTO ${i+1}</b><div class="flex gap-8"><button class="btn btn-sm" onclick="duplicateWorkStep(${i})">Duplicar procedimiento</button><button class="btn btn-sm" onclick="moveWorkStep(${i},-1)">↑</button><button class="btn btn-sm" onclick="moveWorkStep(${i},1)">↓</button><button class="btn btn-sm btn-danger" onclick="removeWorkStep(${i})">Eliminar</button></div></div><div class="field mt-8"><label>Texto / instrucción</label><textarea class="wi-step-text" onfocus="WI_ACTIVE_TEXTAREA=this">${htmlEscape(s.instruction||'')}</textarea></div><div class="grid-2 gap-8"><div class="field"><label>Observación</label><textarea class="wi-step-observation">${htmlEscape(s.observation||'')}</textarea></div><div class="field"><label>Advertencia</label><textarea class="wi-step-warning">${htmlEscape(s.warning||'')}</textarea></div></div><div class="field"><label>Imagen opcional (JPG, PNG o WEBP; máx. 10 MB)</label><input type="file" accept="image/jpeg,image/png,image/webp" onchange="queueWorkImage(${i+1},this.files[0])">${s.image?`<span class="text-hint">Imagen guardada: ${htmlEscape(s.image.relative_path)}</span>`:''}</div></div>`).join('')}
+function collectWorkSteps(){return [...document.querySelectorAll('.wi-step')].map(x=>({instruction:x.querySelector('.wi-step-text').value,observation:x.querySelector('.wi-step-observation').value||null,warning:x.querySelector('.wi-step-warning').value||null}))}
+function rerenderSteps(transform){const steps=collectWorkSteps();transform(steps);renderWorkSteps(steps)}
+function addWorkStep(){rerenderSteps(x=>x.push(blankStep()))} function duplicateWorkStep(i){rerenderSteps(x=>x.splice(i+1,0,{...x[i]}))} function removeWorkStep(i){rerenderSteps(x=>{if(x.length>1)x.splice(i,1)})} function moveWorkStep(i,d){rerenderSteps(x=>{const j=i+d;if(j>=0&&j<x.length)[x[i],x[j]]=[x[j],x[i]]})}
+function insertAtActive(text){const el=WI_ACTIVE_TEXTAREA;if(!el)return;const start=el.selectionStart??el.value.length,end=el.selectionEnd??start,prefix=start&&el.value[start-1]&&!/\s/.test(el.value[start-1])?' ':'';el.setRangeText(prefix+text,start,end,'end');el.focus()}
+function insertQuickAction(action){insertAtActive(action+' ')} function insertPhraseTemplate(text){if(text)insertAtActive(text)}
+function queueWorkImage(position,file){if(file)WI_PENDING_IMAGES.set(position,file)}
+function renderWorkMaterials(items){document.getElementById('wi-material-list').innerHTML=(items||[]).map((x,i)=>`<div class="wi-table-row wi-material"><input placeholder="Referencia" value="${htmlEscape(x.reference||'')}"><input placeholder="Descripción" value="${htmlEscape(x.description||'')}"><input placeholder="Código" value="${htmlEscape(x.code||'')}"><input placeholder="Cantidad" value="${htmlEscape(x.quantity||'')}"><input placeholder="Observaciones" value="${htmlEscape(x.notes||'')}"><button class="btn btn-sm" onclick="this.parentElement.remove()">×</button></div>`).join('')} function addWorkMaterial(){document.getElementById('wi-material-list').insertAdjacentHTML('beforeend','<div class="wi-table-row wi-material"><input placeholder="Referencia"><input placeholder="Descripción"><input placeholder="Código"><input placeholder="Cantidad"><input placeholder="Observaciones"><button class="btn btn-sm" onclick="this.parentElement.remove()">×</button></div>')}
+function collectMaterials(){return [...document.querySelectorAll('.wi-material')].map(r=>{const x=r.querySelectorAll('input');return{reference:x[0].value||null,description:x[1].value,code:x[2].value||null,quantity:x[3].value,notes:x[4].value||null}}).filter(x=>x.description&&x.quantity)}
+function renderWorkTools(items){document.getElementById('wi-tool-list').innerHTML=(items||[]).map(x=>`<div class="wi-table-row wi-tool"><input placeholder="Descripción" value="${htmlEscape(x.description||'')}"><input placeholder="Especificación" value="${htmlEscape(x.specification||'')}"><input placeholder="Cantidad" value="${htmlEscape(x.quantity||'')}"><button class="btn btn-sm" onclick="this.parentElement.remove()">×</button></div>`).join('')} function addWorkTool(){document.getElementById('wi-tool-list').insertAdjacentHTML('beforeend','<div class="wi-table-row wi-tool"><input placeholder="Descripción"><input placeholder="Especificación"><input placeholder="Cantidad"><button class="btn btn-sm" onclick="this.parentElement.remove()">×</button></div>')}
+function collectTools(){return [...document.querySelectorAll('.wi-tool')].map(r=>{const x=r.querySelectorAll('input');return{description:x[0].value,specification:x[1].value||null,quantity:x[2].value}}).filter(x=>x.description&&x.quantity)}
+function renderWorkEpp(items){const selected=new Set((items||[]).filter(x=>x.selected).map(x=>x.name));document.getElementById('wi-epp-list').innerHTML=WI_EPP.map(x=>`<label><input type="checkbox" value="${htmlEscape(x)}" ${selected.has(x)?'checked':''}> ${htmlEscape(x)}</label>`).join('')}
+function collectEpp(){return [...document.querySelectorAll('#wi-epp-list input')].map(x=>({name:x.value,selected:x.checked}))}
+function workPayload(){return{document_code:document.getElementById('wi-code').value,revision_code:document.getElementById('wi-revision-code').value,status:'draft',area:document.getElementById('wi-area').value,process:document.getElementById('wi-process').value,title:document.getElementById('wi-title').value,prepared_by:document.getElementById('wi-prepared').value,reviewed_by:document.getElementById('wi-reviewed').value,approved_by:document.getElementById('wi-approved').value||null,document_date:document.getElementById('wi-date').value,distribution:document.getElementById('wi-distribution').value||null,steps:collectWorkSteps(),materials:collectMaterials(),tools:collectTools(),epp:collectEpp()}}
+async function fileBase64(file){return new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]);r.onerror=no;r.readAsDataURL(file)})}
+async function saveWorkInstruction(){try{const p=workPayload();if(!WI_CURRENT){WI_CURRENT=await apiAdmin(`/modelos/${encodeURIComponent(document.getElementById('wi-model').value)}/instrucciones`,'POST',p)}else{await apiAdmin(`/instrucciones/${WI_CURRENT.instruction_id}`,'PATCH',{document_code:p.document_code});WI_CURRENT=await apiAdmin(`/instrucciones/${WI_CURRENT.instruction_id}/revisiones/${encodeURIComponent(p.revision_code)}`,'PATCH',(({document_code,revision_code,status,...rest})=>rest)(p))}for(const [position,file] of WI_PENDING_IMAGES)await apiAdmin(`/instrucciones/${WI_CURRENT.instruction_id}/revisiones/${encodeURIComponent(p.revision_code)}/procedimientos/${position}/imagen`,'POST',{mime_type:file.type,data_base64:await fileBase64(file)});WI_CURRENT=await api(`/instrucciones/${WI_CURRENT.instruction_id}`);WI_PENDING_IMAGES.clear();loadInstructionIntoEditor(WI_CURRENT);setInstructionMode(false);document.getElementById('wi-message').innerHTML=alert_html('ok','Instrucción guardada correctamente.')}catch(e){document.getElementById('wi-message').innerHTML=alert_html('err',htmlEscape(e.message))}}
+function renderRevisionHistory(revisions){document.getElementById('wi-revision-history').innerHTML=(revisions||[]).map(r=>`<span class="badge mr-8">${htmlEscape(r.revision_code)} · ${htmlEscape(r.status)}</span>`).join('')||'<span class="text-muted">Se creará al guardar.</span>'}
+async function createWorkRevision(){if(!WI_CURRENT)return;try{const code=document.getElementById('wi-new-revision').value;WI_CURRENT=await apiAdmin(`/instrucciones/${WI_CURRENT.instruction_id}/revisiones`,'POST',{revision_code:code});WI_CURRENT.current_revision=WI_CURRENT.revisions.find(x=>x.revision_code===code);loadInstructionIntoEditor(WI_CURRENT);setInstructionMode(true)}catch(e){document.getElementById('wi-message').innerHTML=alert_html('err',htmlEscape(e.message))}}
+async function activateWorkRevision(){if(!WI_CURRENT)return;try{WI_CURRENT=await apiAdmin(`/instrucciones/${WI_CURRENT.instruction_id}/revisiones/${encodeURIComponent(document.getElementById('wi-revision-code').value)}/activar`,'POST');loadInstructionIntoEditor(WI_CURRENT);setInstructionMode(false)}catch(e){document.getElementById('wi-message').innerHTML=alert_html('err',htmlEscape(e.message))}}
+function renderWorkPreview(){const p=workPayload(),model=MASTER_MODELS.find(x=>x.model_id===document.getElementById('wi-model').value);document.getElementById('wi-preview-content').innerHTML=`<article class="wi-preview"><h2>${htmlEscape(p.document_code||'Nueva IT')} · ${htmlEscape(p.title||'Sin título')}</h2><p><b>Modelo:</b> ${htmlEscape(model?modelLabel(model):'—')} · <b>Proceso:</b> ${htmlEscape(p.process||'—')} · <b>Revisión:</b> ${htmlEscape(p.revision_code)}</p><h3>Procedimientos</h3>${p.steps.map((x,i)=>`<section><b>${i+1}.</b> ${htmlEscape(x.instruction)}${x.observation?`<p>Observación: ${htmlEscape(x.observation)}</p>`:''}${x.warning?`<p class="text-danger">Advertencia: ${htmlEscape(x.warning)}</p>`:''}</section>`).join('')}<h3>Materiales</h3><ul>${p.materials.map(x=>`<li>${htmlEscape(x.description)} — ${htmlEscape(x.quantity)}</li>`).join('')}</ul><h3>Herramientas</h3><ul>${p.tools.map(x=>`<li>${htmlEscape(x.description)} — ${htmlEscape(x.quantity)}</li>`).join('')}</ul><h3>EPP</h3><p>${p.epp.filter(x=>x.selected).map(x=>htmlEscape(x.name)).join(', ')||'Sin selección'}</p></article>`}
+async function exportWorkInstruction(){if(!WI_CURRENT)return;try{await api(`/instrucciones/${WI_CURRENT.instruction_id}/exportar`)}catch(e){document.getElementById('wi-message').innerHTML=alert_html(e.status===503?'info':'err',htmlEscape(e.message))}}
+document.getElementById('wi-action-chips').innerHTML=WI_ACTIONS.map(x=>`<button class="chip" onclick="insertQuickAction('${x}')">${x}</button>`).join('');
 
 /* ── Init ─────────────────────────────── */
 loadCatalogo();
