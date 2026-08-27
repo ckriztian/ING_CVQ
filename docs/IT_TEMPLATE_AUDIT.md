@@ -17,6 +17,26 @@ La prueba queda como bloqueo técnico obligatorio. No es válido aprobar
 en especial los 10 objetos DrawingML, el WMF, las 61 instancias de imagen, las
 configuraciones de impresión y los archivos binarios de impresora.
 
+## Aclaración funcional: estructura corporativa versus ejemplo
+
+La plantilla recibida es una IT ya completada que sirve como referencia de la
+estructura corporativa; no es una plantilla limpia. Por eso los objetos del
+paquete se dividen funcionalmente en dos grupos:
+
+- **Corporativos fijos:** logo, formato, bordes, encabezados, tablas,
+  configuración de impresión, iconos de EPP y los demás elementos visuales
+  fijos. Deben conservarse sin reconstruir sus imágenes.
+- **Contenido de la IT de ejemplo:** textos, fotografías y anotaciones gráficas
+  ubicadas dentro de los cuadros de procedimiento. Deben sustituirse o retirarse
+  al producir una copia limpia; no deben repetirse en una IT nueva.
+
+Los 6 `sp` y 4 `cxnSp` inventariados más abajo son anotaciones particulares del
+ejemplo, no componentes obligatorios del exportador. El producto **no tendrá un
+editor de flechas, círculos, cuadros o shapes**, ni intentará recrearlos o
+manipularlos. Si hacen falta, Ingeniería los agregará después en Microsoft
+Excel. Esta clasificación corrige el alcance funcional sin alterar los hechos
+del inventario OOXML.
+
 ## Inventario del paquete OOXML
 
 El XLSX contiene 42 partes:
@@ -76,7 +96,8 @@ instancias; cada uno de los otros 14 recursos aparece una vez. El recurso
 vectorial `image7.wmf` está efectivamente referenciado y no es un archivo
 huérfano.
 
-Objetos Office que deben sobrevivir exactamente al round-trip:
+Objetos Office de la IT de ejemplo que el ensayo técnico debe detectar (pero
+que no deben copiarse a una IT limpia):
 
 | Nombre OOXML | Tipo / geometría | Ancla (índices base 0) |
 | --- | --- | --- |
@@ -92,7 +113,24 @@ Objetos Office que deben sobrevivir exactamente al round-trip:
 | `Conector: angular 92` | `cxnSp` | col. 5, fila 11 → col. 12, fila 22 |
 
 Los offsets EMU, estilos, rotaciones, rellenos y terminaciones de flecha están
-en el XML y también deben compararse; la tabla no propone coordenadas nuevas.
+en el XML. Se registran para reconocer de manera inequívoca el contenido que se
+retirará de los procedimientos, no para proponer coordenadas nuevas.
+
+### Clasificación de fotografías e imágenes fijas
+
+- `image1.jpeg` a `image5.jpeg` están ancladas dentro de los cuadros de
+  procedimientos (filas base 0 entre 6 y 20): son fotografías específicas del
+  ejemplo y no deben aparecer en una IT limpia.
+- Los ocho iconos anclados en la fila base 0 número 40 son los EPP corporativos:
+  `image8.jpeg`, `image9.png` y `image10.jpeg` a `image15.jpeg`. Deben
+  conservarse como binarios originales; el sistema solo actualizará las marcas
+  de selección en la fila 42 de Excel.
+- `image6.jpeg` está anclada en el rótulo y aparece en 47 instancias OOXML
+  superpuestas; forma parte de los elementos fijos que deben someterse a una
+  validación visual, sin normalizar ni deduplicar automáticamente.
+- `image7.wmf` está anclada junto a la advertencia inferior (fila base 0 número
+  33), fuera de los cuadros fotográficos. Se tratará como elemento fijo mientras
+  Ingeniería no indique lo contrario y no se convertirá a otro formato.
 
 ## Mapa real de campos existentes
 
@@ -174,6 +212,55 @@ archivo original, y comparar como mínimo:
    centrado;
 8. inspección visual en Excel de imágenes, shapes, conectores y flechas.
 
-Si cualquiera de esos elementos desaparece o cambia, `openpyxl` queda
-descartado para el exportador directo. Hasta completar esta prueba no se debe
-comenzar frontend, SQLite ni generación de archivos.
+Este round-trip sin cambios es una prueba diagnóstica deliberadamente estricta:
+si algún elemento desaparece o cambia silenciosamente, `openpyxl` no puede ser
+el mecanismo que abra y vuelva a guardar el paquete completo. La copia limpia
+sí retirará de forma **intencional y selectiva** las cinco fotografías y los 10
+shapes/conectores del ejemplo, pero conservará los elementos corporativos, en
+especial los ocho iconos EPP y sus binarios originales. Hasta completar la
+prueba no se debe comenzar frontend, SQLite ni generación de archivos.
+
+## Alcance funcional acordado para la implementación posterior
+
+La herramienta acelerará el rótulo, la estructura, los procedimientos, las
+fotografías, los materiales, las herramientas y la selección de EPP. No busca
+reemplazar por completo Microsoft Excel.
+
+### Flujo de creación
+
+1. Seleccionar el modelo y completar una sola vez código IT, fecha, realizado
+   por, revisado por, aprobado por cuando corresponda, área, proceso, revisión,
+   distribución y título/contenido.
+2. Elegir cuántos bloques de procedimiento se muestran inicialmente. La lista
+   puede ofrecer una cantidad razonable (por ejemplo, 1–6), pero la persistencia
+   no tendrá un máximo estructural.
+3. Editar en cada procedimiento texto libre, imagen opcional, observación y
+   advertencia.
+4. Poder agregar, eliminar, reordenar y **duplicar procedimiento**.
+5. Completar materiales, herramientas y EPP; guardar y exportar.
+6. Agregar manualmente en Excel las indicaciones gráficas especiales que hagan
+   falta.
+
+Cada fotografía nueva se insertará en su zona de procedimiento preservando la
+relación de aspecto, sin superponer anotaciones gráficas generadas por el
+sistema.
+
+### Ayuda de redacción, sin IA
+
+El texto siempre será editable. La interfaz podrá insertar en el textarea
+activo acciones rápidas como `Tomar`, `Posicionar`, `Colocar`, `Fijar`,
+`Atornillar`, `Sujetar`, `Conectar`, `Rutear`, `Verificar`, `Asegurar`,
+`Insertar`, `Ajustar`, `Presionar` y `Retirar`.
+
+También podrá ofrecer plantillas editables de fijación, conexión y montaje. La
+futura biblioteca configurable de frases queda preparada conceptualmente, pero
+no se implementará como una solución compleja en esta etapa.
+
+### Límite de manipulación del XLSX
+
+El exportador modificará únicamente textos del rótulo, procedimientos,
+fotografías de procedimientos, materiales, herramientas, marcas EPP, revisión
+y paginación. No modificará innecesariamente objetos gráficos corporativos ni
+reconstruirá los iconos de EPP. La creación de la copia limpia debe ser una
+operación explícita sobre una copia de trabajo; el XLSX maestro original seguirá
+siendo inmutable.
