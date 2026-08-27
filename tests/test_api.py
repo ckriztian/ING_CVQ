@@ -163,6 +163,41 @@ def test_work_instruction_api_rejects_unknown_model_and_epp(client):
     assert client.post("/modelos/mdl_000002/instrucciones", json=bad, headers=auth()).status_code == 422
 
 
+def test_work_instruction_revision_export_uses_adapter_and_cleans_temp(client, monkeypatch):
+    created = client.post("/modelos/mdl_000002/instrucciones", json=work_instruction_payload(), headers=auth()).json()
+
+    class FakeExporter:
+        generated = None
+        called_revision = None
+        def available(self): return True
+        def export(self, instruction, revision_code, output_dir):
+            self.called_revision = revision_code
+            self.generated = output_dir / "export_test.xlsx"
+            self.generated.write_bytes(b"xlsx-test")
+            return self.generated
+
+    fake = FakeExporter()
+    monkeypatch.setattr(main, "work_instruction_exporter", fake)
+    response = client.get(f"/instrucciones/{created['instruction_id']}/revisiones/R0/export/xlsx")
+    assert response.status_code == 200 and response.content == b"xlsx-test"
+    assert fake.called_revision == "R0"
+    assert not fake.generated.parent.exists()
+
+
+def test_work_instruction_export_errors_are_controlled(client, monkeypatch):
+    from work_instruction_exporter import ExportError
+    created = client.post("/modelos/mdl_000002/instrucciones", json=work_instruction_payload(), headers=auth()).json()
+
+    class BrokenExporter:
+        def available(self): return True
+        def export(self, *args): raise ExportError("No se pudo insertar la imagen")
+
+    monkeypatch.setattr(main, "work_instruction_exporter", BrokenExporter())
+    response = client.get(f"/instrucciones/{created['instruction_id']}/revisiones/R0/export/xlsx")
+    assert response.status_code == 422
+    assert response.json()["detail"] == "No se pudo insertar la imagen"
+
+
 def test_health(client):
     response = client.get("/health")
     assert response.status_code == 200

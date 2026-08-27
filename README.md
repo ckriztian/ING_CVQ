@@ -268,6 +268,22 @@ revisión es transaccional: la revisión activa anterior pasa a `obsolete` y la
 nueva `draft` pasa a `active`. El editor ofrece acciones rápidas, plantillas de
 frase, duplicación y reordenamiento, y una vista previa HTML.
 
-`work_instruction_exporter.py` define el adaptador del exportador sin importar
-`openpyxl` ni automatización de Office. Hasta validar un motor en Windows, el
-endpoint de exportación responde HTTP 503 de manera controlada.
+`work_instruction_exporter.py` implementa un adaptador desacoplado basado en
+Microsoft Excel COM. En Windows se instalan las dependencias opcionales con
+`pip install -r requirements-windows.txt`; Linux continúa usando solamente
+`requirements.txt` y responde HTTP 503 de manera controlada.
+
+El adaptador abre siempre una instancia aislada mediante `DispatchEx`, trabaja
+sobre una copia temporal de `templates/it/BSIP_IT_template.xlsx`, elimina por
+nombre los objetos específicos de los procedimientos del ejemplo y conserva
+los recursos corporativos. Para diagnosticar y probar la integración en una PC
+con Microsoft Excel instalado:
+
+```bash
+python scripts/check_excel_com.py
+python scripts/test_it_excel_export.py
+```
+
+El segundo comando genera un archivo bajo `exports_test/` sin acceder a
+`work_instructions.db`. Superar estos scripts no sustituye la inspección visual
+manual del libro generado en Microsoft Excel.

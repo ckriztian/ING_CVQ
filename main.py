@@ -17,6 +17,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response, st
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel, Field, HttpUrl, field_validator
+from starlette.background import BackgroundTask
 
 from history_store import CHANGE_STATUSES, CHANGE_TYPES
 from history_store import create_change as db_create_change
@@ -24,6 +25,7 @@ from history_store import get_change as db_get_change
 from history_store import initialize as initialize_history
 from history_store import list_changes as db_list_changes
 from history_store import update_change as db_update_change
+from work_instruction_exporter import BackendUnavailableError, ExportError
 from work_instruction_exporter import exporter as work_instruction_exporter
 from work_instruction_store import EPP_OPTIONS, REVISION_STATUSES
 from work_instruction_store import activate_revision as db_activate_revision
@@ -946,10 +948,37 @@ def get_work_instruction_image(instruction_id: str, revision_code: str, position
 
 @app.get("/instrucciones/{instruction_id}/exportar")
 def export_work_instruction(instruction_id: str):
+    return export_work_instruction_revision(instruction_id, None)
+
+
+@app.get("/instrucciones/{instruction_id}/revisiones/{revision_code}/export/xlsx")
+def export_work_instruction_revision(instruction_id: str, revision_code: Optional[str] = None):
     item = get_work_instruction(instruction_id)
+    if revision_code and not any(revision["revision_code"] == revision_code for revision in item["revisions"]):
+        raise HTTPException(404, "Revisión no encontrada")
+    identity = resolve_model(item["model_id"])
+    item["model_label"] = f"{identity['capacidad'].upper()} · {identity['proveedor'].upper()} · {identity['modelo'].upper()}"
     if not work_instruction_exporter.available():
         raise HTTPException(503, "La exportación Excel todavía no está disponible en este entorno.")
-    return FileResponse(work_instruction_exporter.export(item))
+    temporary_directory = Path(tempfile.mkdtemp(prefix="it_download_"))
+    try:
+        generated = work_instruction_exporter.export(item, revision_code, temporary_directory)
+    except BackendUnavailableError as exc:
+        shutil.rmtree(temporary_directory, ignore_errors=True)
+        raise HTTPException(503, str(exc)) from exc
+    except ExportError as exc:
+        shutil.rmtree(temporary_directory, ignore_errors=True)
+        raise HTTPException(422, str(exc)) from exc
+    except Exception as exc:
+        shutil.rmtree(temporary_directory, ignore_errors=True)
+        logger.exception("Fallo inesperado del exportador Excel COM")
+        raise HTTPException(500, "No se pudo generar el archivo Excel.") from exc
+    return FileResponse(
+        generated,
+        filename=generated.name,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        background=BackgroundTask(shutil.rmtree, temporary_directory, ignore_errors=True),
+    )
 
 
 @app.get("/pallets", response_model=PalletInfo)

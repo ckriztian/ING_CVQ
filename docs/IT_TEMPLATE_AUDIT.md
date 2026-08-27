@@ -7,10 +7,11 @@ SHA-256 original: `42d32ba9bae598c5ec18a3f12c25ae1f18e54fba0d45450de0e713f322d61
 ## Alcance y decisión
 
 Esta auditoría se hizo directamente sobre el paquete OOXML, sin modificar la
-plantilla. Todavía **no se selecciona una tecnología de exportación** ni se
-implementa el generador: el ensayo de apertura y guardado con `openpyxl` no se
-pudo ejecutar en el entorno porque la biblioteca no está instalada y tanto
-PyPI como los repositorios APT están bloqueados por el proxy (HTTP 403).
+plantilla. El ensayo de apertura y guardado con `openpyxl` no se pudo ejecutar
+en este entorno porque la biblioteca no está instalada y tanto PyPI como los
+repositorios APT están bloqueados por el proxy (HTTP 403). Posteriormente se
+seleccionó Microsoft Excel COM como motor exclusivo de Windows; su validación
+real y visual continúa pendiente de ejecución local.
 
 La prueba queda como bloqueo técnico obligatorio. No es válido aprobar
 `openpyxl` hasta comparar un archivo guardado sin cambios con este inventario,
@@ -185,7 +186,8 @@ plantilla. No constituye todavía un contrato de escritura.
 
 ### Estado
 
-**No ejecutada por limitación del entorno; decisión tecnológica pendiente.**
+**No ejecutada por limitación del entorno; se descartó usar `openpyxl` como
+motor del producto sin esta evidencia. El backend seleccionado es Excel COM.**
 
 Intentos realizados:
 
