@@ -21,7 +21,14 @@ def test_frontend_javascript_syntax(tmp_path):
         pytest.skip("Node.js no está disponible")
     script = tmp_path / "index-inline.js"
     script.write_text(inline_javascript(), encoding="utf-8")
-    subprocess.run([node, "--check", str(script)], check=True, capture_output=True, text=True)
+    subprocess.run(
+        [node, "--check", str(script)],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="strict",
+    )
 
 
 def test_active_model_state_is_global_and_contains_no_secret_storage():

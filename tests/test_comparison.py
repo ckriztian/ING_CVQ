@@ -15,7 +15,16 @@ def run_engine(expression):
     if not node:
         pytest.skip("Node.js no está disponible")
     script = f"const E=require({json.dumps(str(ENGINE))}); console.log(JSON.stringify({expression}));"
-    result = subprocess.run([node, "-e", script], check=True, capture_output=True, text=True)
+    # Node escribe JSON en UTF-8. En Windows, ``text=True`` usa por defecto la
+    # página de códigos local (por ejemplo cp1252) y convierte "·" en "Â·".
+    result = subprocess.run(
+        [node, "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="strict",
+    )
     return json.loads(result.stdout)
 
 
