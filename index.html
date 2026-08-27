@@ -6,389 +6,7 @@
   <title>BGH · Sistema Experto v0.1</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <style>
-    /* ── Tokens ─────────────────────────────── */
-    :root {
-      --bg:        #F4F6FA;
-      --surface:   #FFFFFF;
-      --surface2:  #F0F3F9;
-      --border:    #E2E8F3;
-      --border2:   #C8D3E8;
-      --text:      #1A2035;
-      --muted:     #6B7A99;
-      --hint:      #9BAAC4;
-      --accent:    #2563EB;
-      --accent-lt: #EEF3FD;
-      --accent-dk: #1D4ED8;
-      --ok:        #16A34A;
-      --ok-lt:     #DCFCE7;
-      --warn:      #D97706;
-      --warn-lt:   #FEF3C7;
-      --err:       #DC2626;
-      --err-lt:    #FEE2E2;
-      --navy:      #0F1F45;
-      --r:         10px;
-      --r-lg:      14px;
-      --shadow:    0 1px 3px rgba(15,31,69,.07), 0 4px 12px rgba(15,31,69,.05);
-      --shadow-md: 0 2px 6px rgba(15,31,69,.09), 0 8px 24px rgba(15,31,69,.07);
-    }
-
-    /* ── Reset ───────────────────────────────── */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'DM Sans', system-ui, sans-serif;
-      font-size: 14px;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-    }
-    a { color: var(--accent); }
-    code, .mono { font-family: 'DM Mono', monospace; font-size: 12px; }
-
-    /* ── Layout ──────────────────────────────── */
-    .app-shell { display: flex; min-height: 100vh; }
-
-    /* Sidebar */
-    .sidebar {
-      width: 220px;
-      flex-shrink: 0;
-      background: var(--navy);
-      display: flex;
-      flex-direction: column;
-      padding: 0;
-      position: sticky;
-      top: 0;
-      height: 100vh;
-    }
-    .sidebar-brand {
-      padding: 22px 20px 18px;
-      border-bottom: 1px solid rgba(255,255,255,.08);
-    }
-    .brand-badge {
-      width: 36px; height: 36px;
-      background: var(--accent);
-      border-radius: 9px;
-      display: grid; place-items: center;
-      margin-bottom: 10px;
-    }
-    .brand-badge svg { width: 20px; height: 20px; }
-    .brand-name { font-size: 15px; font-weight: 600; color: #fff; letter-spacing: -.2px; }
-    .brand-sub  { font-size: 11px; color: rgba(255,255,255,.45); margin-top: 2px; }
-
-    .sidebar-nav { flex: 1; padding: 12px 10px; display: flex; flex-direction: column; gap: 2px; }
-    .nav-group-label {
-      font-size: 10px; font-weight: 600; letter-spacing: .08em;
-      color: rgba(255,255,255,.3); text-transform: uppercase;
-      padding: 12px 10px 6px;
-    }
-    .nav-item {
-      display: flex; align-items: center; gap: 10px;
-      padding: 9px 12px; border-radius: 8px;
-      cursor: pointer; color: rgba(255,255,255,.55);
-      font-size: 13.5px; font-weight: 400;
-      transition: background .15s, color .15s;
-      border: none; background: none; width: 100%; text-align: left;
-      font-family: 'DM Sans', system-ui, sans-serif;
-    }
-    .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
-    .nav-item:hover { background: rgba(255,255,255,.07); color: #fff; }
-    .nav-item.active { background: var(--accent); color: #fff; font-weight: 500; }
-
-    .sidebar-footer {
-      padding: 14px 20px;
-      border-top: 1px solid rgba(255,255,255,.08);
-      font-size: 11px;
-      color: rgba(255,255,255,.3);
-    }
-
-    /* Main content */
-    .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-
-    /* Top bar */
-    .topbar {
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      padding: 14px 28px;
-      display: flex; align-items: center; justify-content: space-between; gap: 12px;
-      position: sticky; top: 0; z-index: 10;
-    }
-    .topbar-title { font-size: 16px; font-weight: 600; color: var(--text); }
-    .topbar-right { display: flex; align-items: center; gap: 10px; }
-    .api-input-wrap { display: flex; align-items: center; gap: 6px; }
-    .api-label { font-size: 12px; color: var(--muted); white-space: nowrap; }
-    .api-input {
-      padding: 6px 10px; font-size: 12px; font-family: 'DM Mono', monospace;
-      border: 1px solid var(--border2); border-radius: 7px;
-      background: var(--surface2); color: var(--text); outline: none; width: 200px;
-    }
-    .api-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
-
-    /* Page */
-    .page { display: none; padding: 28px; max-width: 1100px; }
-    .page.active { display: block; }
-
-    /* Section headers */
-    .page-title { font-size: 22px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
-    .page-sub   { font-size: 13px; color: var(--muted); margin-bottom: 24px; }
-
-    /* Cards */
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--r-lg);
-      padding: 20px 22px;
-      box-shadow: var(--shadow);
-    }
-    .card + .card { margin-top: 14px; }
-    .card-title {
-      font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase;
-      color: var(--muted); margin-bottom: 14px; display: flex; align-items: center; gap: 7px;
-    }
-    .card-title svg { width: 14px; height: 14px; }
-
-    /* Grid utilities */
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
-    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-    .grid-auto { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
-    .g-span2 { grid-column: span 2; }
-
-    /* Form */
-    .field { display: flex; flex-direction: column; gap: 5px; }
-    .field label { font-size: 12px; font-weight: 500; color: var(--muted); }
-    select, input[type="number"], input[type="text"], input[type="password"], textarea {
-      padding: 9px 12px; font-size: 13.5px;
-      font-family: 'DM Sans', system-ui, sans-serif;
-      border: 1px solid var(--border2); border-radius: var(--r);
-      background: var(--surface); color: var(--text); outline: none;
-      transition: border-color .15s, box-shadow .15s;
-    }
-    select:focus, input:focus, textarea:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(37,99,235,.1);
-    }
-    textarea { resize: vertical; min-height: 140px; font-size: 12px; font-family: 'DM Mono', monospace; }
-
-    /* Buttons */
-    .btn {
-      padding: 9px 18px; font-size: 13.5px; font-weight: 500;
-      font-family: 'DM Sans', system-ui, sans-serif;
-      border-radius: var(--r); cursor: pointer; border: 1px solid var(--border2);
-      background: var(--surface); color: var(--text);
-      transition: background .15s, border-color .15s, transform .1s;
-      display: inline-flex; align-items: center; gap: 7px;
-      white-space: nowrap;
-    }
-    .btn:hover { background: var(--surface2); }
-    .btn:active { transform: scale(.98); }
-    .btn svg { width: 14px; height: 14px; }
-    .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
-    .btn-primary:hover { background: var(--accent-dk); border-color: var(--accent-dk); }
-    .btn-ok { background: var(--ok); color: #fff; border-color: var(--ok); }
-    .btn-ok:hover { background: #15803d; border-color: #15803d; }
-    .btn-danger { background: var(--err-lt); color: var(--err); border-color: #fca5a5; }
-    .btn-danger:hover { background: #fee2e2; }
-    .btn-sm { padding: 5px 10px; font-size: 12px; }
-    .btn-icon { padding: 7px; width: 32px; height: 32px; justify-content: center; }
-
-    /* Metrics */
-    .metric { background: var(--surface2); border-radius: var(--r); padding: 14px 16px; }
-    .metric-label { font-size: 11px; font-weight: 500; color: var(--muted); margin-bottom: 4px; }
-    .metric-value { font-size: 26px; font-weight: 600; color: var(--text); line-height: 1; }
-    .metric-sub   { font-size: 11px; color: var(--hint); margin-top: 3px; }
-    .metric.accent { background: var(--accent-lt); }
-    .metric.accent .metric-value { color: var(--accent); }
-
-    /* Badges */
-    .badge {
-      display: inline-flex; align-items: center; padding: 3px 9px;
-      border-radius: 20px; font-size: 11px; font-weight: 500; gap: 4px;
-    }
-    .badge-blue   { background: var(--accent-lt); color: var(--accent-dk); }
-    .badge-green  { background: var(--ok-lt); color: var(--ok); }
-    .badge-warn   { background: var(--warn-lt); color: var(--warn); }
-    .badge-gray   { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
-    .badge-err    { background: var(--err-lt); color: var(--err); }
-
-    /* Alerts */
-    .alert {
-      padding: 10px 14px; border-radius: var(--r); font-size: 13px;
-      display: flex; align-items: flex-start; gap: 9px;
-    }
-    .alert svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; }
-    .alert-ok   { background: var(--ok-lt);   color: var(--ok);   border: 1px solid #86efac; }
-    .alert-warn { background: var(--warn-lt); color: var(--warn); border: 1px solid #fcd34d; }
-    .alert-err  { background: var(--err-lt);  color: var(--err);  border: 1px solid #fca5a5; }
-    .alert-info { background: var(--accent-lt); color: var(--accent-dk); border: 1px solid #93c5fd; }
-
-    /* Divider */
-    hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
-
-    /* Status pill */
-    .status-pill {
-      display: inline-flex; align-items: center; gap: 5px;
-      padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 500;
-      border: 1px solid var(--border); color: var(--muted); background: var(--surface2);
-    }
-    .status-pill.ok   { border-color: #86efac; color: var(--ok);   background: var(--ok-lt); }
-    .status-pill.err  { border-color: #fca5a5; color: var(--err);  background: var(--err-lt); }
-    .status-pill.warn { border-color: #fcd34d; color: var(--warn); background: var(--warn-lt); }
-    .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-
-    /* Table */
-    table { width: 100%; border-collapse: collapse; }
-    thead th {
-      font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase;
-      letter-spacing: .06em; padding: 8px 10px; border-bottom: 1px solid var(--border);
-      text-align: left;
-    }
-    tbody td { padding: 9px 10px; border-bottom: 1px solid var(--border); font-size: 13px; }
-    tbody tr:last-child td { border-bottom: none; }
-    tbody tr:hover td { background: var(--surface2); }
-
-    /* KV rows */
-    .kv { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
-    .kv-row { display: contents; }
-    .kv-row span { padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
-    .kv-row span:first-child { color: var(--muted); }
-    .kv-row span:last-child { font-weight: 500; }
-    .kv-row:last-child span { border-bottom: none; }
-
-    /* Progress bar */
-    .progress { height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
-    .progress-fill { height: 100%; border-radius: 3px; background: var(--accent); transition: width .3s; }
-
-    /* Tramos editor */
-    .tramo-row {
-      display: grid;
-      grid-template-columns: 30px 1fr 80px 140px 34px;
-      gap: 8px; align-items: center;
-      padding: 7px 0;
-      border-bottom: 1px solid var(--border);
-    }
-    .tramo-row:last-child { border-bottom: none; }
-    .tramo-nombre {
-      padding: 6px 10px; font-size: 13px; font-family: 'DM Sans', system-ui, sans-serif;
-      border: 1px solid var(--border); border-radius: 7px;
-      background: var(--surface); color: var(--text); outline: none; width: 100%;
-    }
-    .tramo-nombre:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(37,99,235,.1); }
-    .tramo-cant {
-      width: 72px; padding: 6px 10px; font-size: 14px; font-weight: 600;
-      font-family: 'DM Sans', system-ui, sans-serif;
-      border: 1px solid var(--border); border-radius: 7px;
-      background: var(--surface); color: var(--text); text-align: center; outline: none;
-    }
-    .tramo-cant:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(37,99,235,.1); }
-    .move-btns { display: flex; flex-direction: column; gap: 2px; }
-    .move-btn {
-      width: 22px; height: 15px; display: flex; align-items: center; justify-content: center;
-      border: 1px solid var(--border); border-radius: 4px; cursor: pointer;
-      background: var(--surface2); color: var(--muted); font-size: 9px;
-      transition: background .1s;
-    }
-    .move-btn:hover { background: var(--border); }
-    .color-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-
-    /* Linea toggle */
-    .linea-toggle { display: flex; gap: 6px; }
-    .linea-btn {
-      padding: 6px 16px; font-size: 12px; font-weight: 500;
-      border: 1px solid var(--border2); border-radius: 20px;
-      cursor: pointer; font-family: 'DM Sans', system-ui, sans-serif;
-      background: var(--surface2); color: var(--muted); transition: all .15s;
-    }
-    .linea-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-
-    /* Tabs (admin) */
-    .tab-bar { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
-    .tab-btn {
-      padding: 9px 18px; font-size: 13px; font-weight: 500; cursor: pointer;
-      border: none; background: none; color: var(--muted); border-bottom: 2px solid transparent;
-      margin-bottom: -1px; font-family: 'DM Sans', system-ui, sans-serif; transition: color .15s;
-    }
-    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
-
-    /* Pallet visual */
-    .pallet-viz { display: flex; flex-direction: column; gap: 4px; }
-    .pallet-row-viz { display: flex; gap: 4px; }
-    .pallet-box-viz {
-      width: 24px; height: 17px; border-radius: 3px;
-      background: var(--accent-lt); border: 1px solid #93c5fd;
-    }
-    .pallet-box-viz.partial { background: var(--warn-lt); border-color: #fcd34d; }
-
-    /* Responsive */
-    @media (max-width: 860px) {
-      .sidebar { display: none; }
-      .grid-4 { grid-template-columns: 1fr 1fr; }
-      .grid-3 { grid-template-columns: 1fr 1fr; }
-    }
-    @media (max-width: 580px) {
-      .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
-    }
-
-    /* Admin grid (spreadsheet) ─────────── */
-    .admin-grid { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-    .admin-grid thead th {
-      position: sticky; top: 0; z-index: 2;
-      background: var(--surface2);
-      padding: 9px 10px;
-      font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
-      color: var(--muted); text-align: left;
-      border-bottom: 1.5px solid var(--border2);
-      border-right: 1px solid var(--border);
-      white-space: nowrap;
-    }
-    .admin-grid thead th:last-child { border-right: none; }
-    .admin-grid tbody tr:nth-child(even) td { background: #FAFBFD; }
-    .admin-grid tbody tr:hover td { background: var(--accent-lt) !important; }
-    .admin-grid td {
-      padding: 0; border-bottom: 1px solid var(--border);
-      border-right: 1px solid var(--border); vertical-align: middle;
-    }
-    .admin-grid td:last-child { border-right: none; width: 44px; }
-    .grid-cell {
-      display: block; width: 100%; padding: 7px 10px;
-      font-size: 12.5px; font-family: 'DM Mono', monospace;
-      border: none; outline: none; background: transparent;
-      color: var(--text); min-width: 60px;
-    }
-    .grid-cell:focus {
-      background: #EEF3FD;
-      box-shadow: inset 0 0 0 2px var(--accent);
-    }
-    .grid-cell.wide { min-width: 130px; }
-    .grid-cell.narrow { min-width: 50px; max-width: 80px; }
-    .grid-del {
-      width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
-      border: none; background: none; cursor: pointer; color: var(--hint);
-      border-radius: 6px; margin: 0 4px; transition: background .1s, color .1s;
-    }
-    .grid-del:hover { background: var(--err-lt); color: var(--err); }
-    .grid-row-num {
-      font-size: 11px; color: var(--hint); font-family: 'DM Mono', monospace;
-      padding: 0 10px; text-align: center; user-select: none; min-width: 36px;
-      background: var(--surface2) !important;
-      border-right: 1.5px solid var(--border2) !important;
-    }
-
-    /* Helpers */
-    .flex { display: flex; align-items: center; }
-    .flex-wrap { display: flex; flex-wrap: wrap; }
-    .gap-8  { gap: 8px; }
-    .gap-12 { gap: 12px; }
-    .mt-4  { margin-top: 4px; }
-    .mt-12 { margin-top: 12px; }
-    .mt-16 { margin-top: 16px; }
-    .mt-20 { margin-top: 20px; }
-    .mb-12 { margin-bottom: 12px; }
-    .justify-between { justify-content: space-between; }
-    .text-muted { color: var(--muted); }
-    .text-hint  { color: var(--hint); font-size: 12px; }
-    .fw-600 { font-weight: 600; }
-    .hidden { display: none !important; }
-  </style>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <div class="app-shell">
@@ -407,35 +25,49 @@
       <div class="brand-sub">Sistema Experto v0.1</div>
     </div>
     <div class="sidebar-nav">
-      <div class="nav-group-label">Consultas</div>
-      <button class="nav-item active" data-page="pallets" onclick="switchPage('pallets', this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="13" rx="2"/><path d="M16 7V5a2 2 0 0 0-4 0v2"/><line x1="12" y1="11" x2="12" y2="15"/><line x1="10" y1="13" x2="14" y2="13"/></svg>
-        Palletización
+      <div class="nav-group-label">Inicio</div>
+      <button class="nav-item active" data-page="home" onclick="switchPage('home', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11 12 3l9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>
+        Inicio
       </button>
-      <button class="nav-item" data-page="ficha" onclick="switchPage('ficha', this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
-        Ficha del equipo
+      <div class="nav-group-label">Modelo activo</div>
+      <button class="nav-item" data-page="ficha" onclick="openActiveDashboard()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Resumen
       </button>
-      <button class="nav-item" data-page="personal" onclick="switchPage('personal', this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        Personal de línea
-      </button>
-      <button class="nav-item" data-page="specs" onclick="switchPage('specs', this)">
+      <button class="nav-item" data-page="specs" onclick="openActivePage('specs')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
         Especificaciones
       </button>
-      <button class="nav-item" data-page="layouts" onclick="switchPage('layouts', this)">
+      <button class="nav-item" data-page="pallets" onclick="openActivePage('pallets')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="13" rx="2"/><path d="M16 7V5a2 2 0 0 0-4 0v2"/><line x1="12" y1="11" x2="12" y2="15"/><line x1="10" y1="13" x2="14" y2="13"/></svg>
+        Palletización
+      </button>
+      <button class="nav-item" data-page="personal" onclick="openActivePage('personal')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Dotación
+      </button>
+      <button class="nav-item" data-page="layouts" onclick="openActivePage('layouts')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 4v16"/><path d="M3 10h18"/><path d="M13 10v10"/></svg>
         Layouts
       </button>
-      <button class="nav-item" data-page="tiempos" onclick="switchPage('tiempos', this)">
+      <button class="nav-item" data-page="tiempos" onclick="openActivePage('tiempos')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
         Tiempos
       </button>
-      <div class="nav-group-label">Sistema</div>
+      <button class="nav-item" data-page="changes" onclick="openActivePage('changes')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
+        Cambios de Ingeniería
+      </button>
+      <div class="nav-group-label">Herramientas</div>
+      <button class="nav-item" data-page="compare" onclick="openComparator()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 7h14l-3-3"/><path d="m21 7-3 3"/><path d="M17 17H3l3 3"/><path d="m3 17 3-3"/></svg>
+        Comparar modelos
+      </button>
+      <div class="nav-group-label">Administración</div>
       <button class="nav-item" data-page="admin" onclick="switchPage('admin', this)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 1 0 21 12"/><path d="M12 12l9-9"/></svg>
-        Admin / CSV
+        Datos y calidad
       </button>
     </div>
     <div class="sidebar-footer">Cristian Vera - Ingeniería AA</div>
@@ -446,8 +78,12 @@
 
     <!-- Topbar -->
     <div class="topbar">
-      <div class="topbar-title" id="topbar-title">Palletización</div>
+      <div class="topbar-title" id="topbar-title">Inicio</div>
       <div class="topbar-right">
+        <div id="active-model-indicator" class="status-pill" title="Modelo activo">
+          <span class="dot"></span><span id="active-model-text">Sin modelo activo</span>
+          <button class="btn btn-sm hidden" id="change-model-btn" onclick="changeActiveModel()">Cambiar</button>
+        </div>
         <div class="api-input-wrap">
           <span class="api-label">API URL</span>
           <input class="api-input" id="baseUrl" value="http://127.0.0.1:8000" />
@@ -456,8 +92,45 @@
       </div>
     </div>
 
+    <!-- ══ PAGE: Inicio ══ -->
+    <div class="page active" id="page-home">
+      <div style="padding:28px">
+        <div class="page-title">Centro de ingeniería de producto</div>
+        <div class="page-sub">Seleccioná un modelo para consultar su información técnica y de proceso.</div>
+        <div class="home-grid">
+          <div class="card">
+            <div class="card-title">Seleccionar modelo</div>
+            <div class="grid-3 gap-12">
+              <div class="field"><label for="h-cap">Capacidad</label><select id="h-cap" onchange="onCapChange('h')"></select></div>
+              <div class="field"><label for="h-prov">Proveedor</label><select id="h-prov" onchange="onProvChange('h')"></select></div>
+              <div class="field"><label for="h-mod">Modelo</label><select id="h-mod" onchange="onModelChange('h')"></select></div>
+            </div>
+            <div class="field mt-16">
+              <label for="quick-model-search">Acceso rápido por modelo, SKU o PNB</label>
+              <div class="flex gap-8">
+                <input id="quick-model-search" type="text" list="quick-model-options" placeholder="Ej: PNB045740 o BSIC37WCNX" style="flex:1" aria-label="Buscar modelo, SKU o PNB">
+                <datalist id="quick-model-options"></datalist>
+                <button class="btn" onclick="selectQuickModel()">Seleccionar</button>
+              </div>
+            </div>
+            <div class="mt-16 flex gap-8 flex-wrap">
+              <button class="btn btn-primary" onclick="openActiveDashboard()">Abrir modelo</button>
+              <button class="btn" onclick="openActivePage('pallets')">Calcular pallets</button>
+              <button class="btn" onclick="switchPage('admin', document.querySelector('[data-page=admin]'))">Administración</button>
+            </div>
+            <div id="home-selection-message" class="mt-12" aria-live="polite"></div>
+          </div>
+          <div class="card active-summary" id="home-active-model"><div class="empty-state">No hay un modelo activo.</div></div>
+        </div>
+        <div class="card mt-16">
+          <div class="card-title">Estado general de la información</div>
+          <div class="grid-auto" id="home-system-metrics"><span class="text-muted">Cargando indicadores…</span></div>
+        </div>
+      </div>
+    </div>
+
     <!-- ══ PAGE: Palletización ══ -->
-    <div class="page active" id="page-pallets">
+    <div class="page" id="page-pallets">
       <div style="padding: 28px">
         <div class="page-title">Calcular palletización</div>
         <div class="page-sub">Consultá la configuración de pallet y calculá la cantidad necesaria.</div>
@@ -474,7 +147,7 @@
             </div>
             <div class="field">
               <label>Modelo</label>
-              <select id="p-mod"></select>
+              <select id="p-mod" onchange="onModelChange('p')"></select>
             </div>
             <div class="field">
               <label>Cantidad de unidades</label>
@@ -517,7 +190,7 @@
             </div>
             <div class="field">
               <label>Modelo</label>
-              <select id="f-mod"></select>
+              <select id="f-mod" onchange="onModelChange('f')"></select>
             </div>
           </div>
           <div class="mt-16">
@@ -547,7 +220,7 @@
             </div>
             <div class="field">
               <label>Modelo</label>
-              <select id="per-mod"></select>
+              <select id="per-mod" onchange="onModelChange('per')"></select>
             </div>
           </div>
           <div class="mt-16">
@@ -577,7 +250,7 @@
             </div>
             <div class="field">
               <label>Modelo</label>
-              <select id="s-mod"></select>
+              <select id="s-mod" onchange="onModelChange('s')"></select>
             </div>
             <div class="field">
               <label>Línea</label>
@@ -591,6 +264,53 @@
         </div>
 
         <div id="specs-result"></div>
+      </div>
+    </div>
+
+    <!-- ══ PAGE: Cambios de Ingeniería ══ -->
+    <div class="page" id="page-changes">
+      <div style="padding:28px">
+        <div class="flex justify-between flex-wrap gap-8">
+          <div><div class="page-title">Cambios de Ingeniería</div><div class="page-sub" id="changes-model-heading">Historial técnico asociado al modelo activo.</div></div>
+          <button class="btn btn-primary hidden" id="new-change-btn" onclick="openChangeForm()">+ Registrar cambio</button>
+        </div>
+        <div class="card mb-12">
+          <div class="grid-3 gap-12">
+            <div class="field"><label for="changes-status-filter">Estado</label><select id="changes-status-filter" onchange="loadEngineeringChanges()"><option value="">Todos</option></select></div>
+            <div class="field"><label for="changes-type-filter">Categoría</label><select id="changes-type-filter" onchange="loadEngineeringChanges()"><option value="">Todas</option></select></div>
+            <div class="field"><label for="changes-reminder-filter">Recordatorio</label><select id="changes-reminder-filter" onchange="loadEngineeringChanges()"><option value="">Todos</option><option value="true">Sí</option><option value="false">No</option></select></div>
+          </div>
+        </div>
+        <div id="changes-message" aria-live="polite"></div>
+        <div class="history-layout">
+          <div class="card history-table-card">
+            <div class="table-scroll"><table class="technical-table history-table"><thead><tr><th>ID</th><th>Estado</th><th>Categoría</th><th>Cambio</th><th>Sector / proceso</th><th>Fecha</th><th>Recordatorio</th></tr></thead><tbody id="changes-table-body"></tbody></table></div>
+          </div>
+          <div class="card" id="change-detail"><div class="empty-state"><strong>Seleccioná un cambio</strong><span>El detalle técnico se mostrará aquí.</span></div></div>
+        </div>
+        <div class="card hidden mt-12" id="change-form-card">
+          <div class="flex justify-between"><div><div class="card-title" id="change-form-title">Registrar cambio</div><div class="text-hint" id="change-form-model"></div></div><span class="badge badge-warn">MODO EDICIÓN</span></div>
+          <form id="change-form" onsubmit="saveEngineeringChange(event)">
+            <div class="grid-3 gap-12 mt-16">
+              <div class="field"><label for="change-type">Categoría *</label><select id="change-type" required onchange="toggleMaterialFields()"></select></div>
+              <div class="field"><label for="change-title">Título *</label><input id="change-title" maxlength="180" required></div>
+              <div class="field"><label for="change-sector">Sector / proceso</label><input id="change-sector" maxlength="120"></div>
+            </div>
+            <div class="field mt-12"><label for="change-description">Descripción *</label><textarea id="change-description" maxlength="4000" rows="4" required></textarea></div>
+            <div class="grid-2 gap-12 mt-12" id="change-material-fields">
+              <div class="field"><label for="change-old-code">Material anterior</label><input id="change-old-code" maxlength="120"><span class="text-hint">Ejemplo de referencia: tornillo 273</span></div>
+              <div class="field"><label for="change-new-code">Material nuevo</label><input id="change-new-code" maxlength="120"><span class="text-hint">Ejemplo de referencia: tornillo 263</span></div>
+            </div>
+            <div class="grid-3 gap-12 mt-12">
+              <div class="field"><label for="change-reason">Motivo</label><textarea id="change-reason" maxlength="2000" rows="3"></textarea></div>
+              <div class="field"><label for="change-created-by">Responsable</label><input id="change-created-by" maxlength="120"></div>
+              <div class="field"><label for="change-status">Estado *</label><select id="change-status" required></select></div>
+            </div>
+            <div class="field mt-12"><label for="change-notes">Observaciones</label><textarea id="change-notes" maxlength="2000" rows="3"></textarea></div>
+            <label class="filter-check mt-12"><input type="checkbox" id="change-reminder"> Recordar en próxima producción</label>
+            <div class="flex gap-8 mt-16"><button class="btn btn-primary" type="submit">Guardar cambio</button><button class="btn" type="button" onclick="closeChangeForm()">Cancelar</button></div>
+          </form>
+        </div>
       </div>
     </div>
 
@@ -619,6 +339,13 @@
         </div>
 
         <div id="admin-panel" class="hidden">
+          <div class="card mb-12">
+            <div class="flex justify-between gap-8">
+              <div class="card-title">Calidad de datos</div>
+              <button class="btn btn-sm" onclick="loadIntegrityPanel()">Actualizar</button>
+            </div>
+            <div id="integrity-panel" aria-live="polite"><span class="text-muted">Ingresá para consultar la integridad del catálogo.</span></div>
+          </div>
           <div class="tab-bar">
             <button class="tab-btn active" id="tab-pallet-csv" onclick="switchAdminTab('pallet')">Palletización</button>
             <button class="tab-btn" id="tab-specs-csv" onclick="switchAdminTab('specs')">Especificaciones</button>
@@ -721,7 +448,7 @@
             </div>
             <div class="field">
               <label>Modelo</label>
-              <select id="l-mod"></select>
+              <select id="l-mod" onchange="onModelChange('l')"></select>
             </div>
           </div>
           <div class="mt-16 flex gap-8 flex-wrap">
@@ -756,7 +483,7 @@
             </div>
             <div class="field">
               <label>Modelo</label>
-              <select id="t-mod"></select>
+              <select id="t-mod" onchange="onModelChange('t')"></select>
             </div>
             <div class="field">
               <label>Límite segundos</label>
@@ -780,8 +507,8 @@
             <input type="number" id="t-ciclos" value="3" min="1" max="20">
           </div>
 
-          <button class="btn" onclick="generarTablaCiclos()">
-            Generar tabla de carga
+          <button class="btn" disabled title="Función en desarrollo">
+            Generar tabla de carga · Función en desarrollo
           </button>
 
           <div class="mt-16 flex gap-8 flex-wrap">
@@ -800,10 +527,36 @@
 
         <div class="grid-4 gap-8" style="margin-bottom:14px" id="tiempos-metrics"></div>
 
+        <div class="card mb-12 hidden" id="tiempos-table-card">
+          <div class="card-title">Detalle por puesto</div>
+          <div class="table-scroll"><table class="technical-table"><thead><tr><th>Puesto</th><th>Tiempo</th><th>% del ciclo</th><th>Estado</th></tr></thead><tbody id="tiempos-table-body"></tbody></table></div>
+        </div>
+
         <div class="card">
           <div class="card-title">Gráfico de balance</div>
           <canvas id="grafico-tiempos" height="120"></canvas>
         </div>
+      </div>
+    </div>
+
+    <!-- ══ PAGE: Comparador ══ -->
+    <div class="page" id="page-compare">
+      <div style="padding:28px">
+        <div class="page-title">Comparación técnica de modelos</div>
+        <div class="page-sub">Compará recursos, proceso y producto usando las fichas consolidadas del catálogo maestro.</div>
+        <div class="card mb-12">
+          <div class="compare-selector-grid">
+            <div class="field"><label for="compare-a">Modelo A</label><select id="compare-a" onchange="onCompareSelectionChange()"></select><span class="text-hint">El Modelo Activo se preselecciona como referencia.</span></div>
+            <button class="btn compare-swap" onclick="swapComparedModels()" aria-label="Intercambiar modelos">⇄ Intercambiar</button>
+            <div class="field"><label for="compare-b">Modelo B</label><select id="compare-b" onchange="onCompareSelectionChange()"></select><span class="text-hint">Los deltas se calculan como B − A.</span></div>
+          </div>
+          <div class="mt-16 flex justify-between flex-wrap gap-8">
+            <label class="filter-check"><input type="checkbox" id="compare-only-diffs" onchange="applyComparisonFilter()"> Mostrar solo diferencias</label>
+            <div class="flex gap-8"><button class="btn" onclick="clearComparison()">Nueva comparación</button><button class="btn btn-primary" onclick="compareModels()">Comparar</button></div>
+          </div>
+          <div id="compare-message" class="mt-12" aria-live="polite"></div>
+        </div>
+        <div id="compare-results"></div>
       </div>
     </div>
 
@@ -812,35 +565,59 @@
 
 <!-- Chart.js para gráficos de tiempos -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="comparison.js"></script>
 
 <!-- ══════════ SCRIPTS ══════════ -->
 <script>
 /* ── Navigation ────────────────────────── */
 const PAGE_TITLES = {
+  home: 'Inicio',
   pallets: 'Palletización',
-  ficha: 'Ficha del equipo',
-  personal: 'Personal de línea',
+  ficha: 'Resumen del modelo',
+  personal: 'Dotación de línea',
   specs: 'Especificaciones técnicas',
   layouts: 'Layouts por modelo',
   tiempos: 'Tiempos por puesto',
+  changes: 'Cambios de Ingeniería',
+  compare: 'Comparar modelos',
   admin: 'Administración',
 };
 function switchPage(id, btn) {
+  if (id !== 'personal' && PERSONAL_DIRTY && !confirmDiscardPersonalChanges()) return false;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('page-' + id).classList.add('active');
   btn.classList.add('active');
   document.getElementById('topbar-title').textContent = PAGE_TITLES[id] || id;
+  return true;
 }
 
 /* ── API helper ─────────────────────────── */
 function base() { return document.getElementById('baseUrl').value.replace(/\/$/, ''); }
 
 async function api(path, opts = {}) {
-  const r = await fetch(base() + path, opts);
-  if (!r.ok) throw new Error(`${r.status} — ${await r.text()}`);
+  let r;
+  try { r = await fetch(base() + path, opts); }
+  catch (_) { throw new Error('API no disponible. Verificá la conexión con el servidor.'); }
+  if (!r.ok) {
+    const messages = {401:'No autorizado.',404:'No existe información registrada.',422:'Datos inválidos.',500:'Error del servidor.',503:'Administración no configurada.'};
+    let detail = '';
+    try { detail = (await r.json()).detail || ''; } catch (_) {}
+    const error = new Error(detail || messages[r.status] || `Error HTTP ${r.status}`);
+    error.status = r.status;
+    throw error;
+  }
+  if (r.status === 204) return null;
   const ct = r.headers.get('content-type') || '';
   return ct.includes('json') ? r.json() : r.text();
+}
+
+async function apiOptional(path) {
+  try { return await api(path); }
+  catch (error) {
+    if (error.status === 404) return null;
+    throw error;
+  }
 }
 
 function setGlobalStatus(text, kind = '') {
@@ -851,16 +628,43 @@ function setGlobalStatus(text, kind = '') {
 
 /* ── Catalogue helpers ─────────────────── */
 let CATALOGUE = [];
+let MASTER_MODELS = [];
+let activeModel = null;
+let SYNCING_ACTIVE = false;
 let LINEAS    = ['L01', 'L03'];
+let INTEGRITY = null;
+let ACTIVE_ENGINEERING_CHANGES = [];
 
 async function loadCatalogo() {
   try {
-    CATALOGUE = await api('/catalogo');
+    [CATALOGUE, MASTER_MODELS] = await Promise.all([api('/catalogo'), api('/modelos')]);
     setGlobalStatus('Conectado', 'ok');
     populateCaps();
+    populateQuickModelSearch();
+    restoreActiveModel();
+    await loadHomeMetrics();
   } catch(e) {
     setGlobalStatus('Sin conexión', 'err');
   }
+}
+
+async function refreshCatalogAfterPalletSave() {
+  const activeId = activeModel?.model_id || sessionStorage.getItem('ACTIVE_MODEL_ID');
+  [CATALOGUE, MASTER_MODELS] = await Promise.all([api('/catalogo'), api('/modelos')]);
+  populateCaps();
+  populateQuickModelSearch();
+  populateComparisonSelectors();
+  const refreshedActive = activeId ? MASTER_MODELS.find(item => item.model_id === activeId) : null;
+  if (refreshedActive) setActiveModel(refreshedActive, false);
+  else if (activeId) changeActiveModel();
+  await loadHomeMetrics();
+  if (document.getElementById('page-ficha').classList.contains('active') && activeModel) await showFicha();
+  if (document.getElementById('page-compare').classList.contains('active')) {
+    const a = document.getElementById('compare-a').value;
+    const b = document.getElementById('compare-b').value;
+    if (a && b && a !== b) await compareModels();
+  }
+  if (document.getElementById('integrity-panel')) await loadIntegrityPanel();
 }
 
 async function loadLineas() {
@@ -871,7 +675,7 @@ async function loadLineas() {
   } catch(_) {}
 }
 
-const PREFIXES = ['p', 'f', 'per', 's', 'l', 't'];
+const PREFIXES = ['h', 'p', 'f', 'per', 's', 'l', 't'];
 
 function populateCaps() {
   const caps = [...new Set(CATALOGUE.map(i => i.capacidad))].sort();
@@ -896,7 +700,10 @@ function onProvChange(pfx) {
   const mods = [...new Set(CATALOGUE.filter(i => i.capacidad === cap && i.proveedor === prov).map(i => i.modelo))].sort();
   const modSel = document.getElementById(pfx + '-mod');
   modSel.innerHTML = '<option value="">— Modelo —</option>' + mods.map(m => `<option>${m}</option>`).join('');
-  if (mods.length === 1) modSel.value = mods[0];
+  if (mods.length === 1) {
+    modSel.value = mods[0];
+    if (!SYNCING_ACTIVE) onModelChange(pfx);
+  }
 }
 
 function getSel(pfx) {
@@ -905,6 +712,172 @@ function getSel(pfx) {
     prov: document.getElementById(pfx + '-prov').value,
     mod:  document.getElementById(pfx + '-mod').value,
   };
+}
+
+function findMasterModel(cap, prov, mod) {
+  return MASTER_MODELS.find(item => item.capacidad === cap && item.proveedor === prov && item.modelo === mod) || null;
+}
+
+function onModelChange(pfx) {
+  if (SYNCING_ACTIVE) return;
+  const { cap, prov, mod } = getSel(pfx);
+  if (!cap || !prov || !mod) return;
+  const identity = findMasterModel(cap, prov, mod);
+  if (identity) {
+    if (!setActiveModel(identity)) { if (activeModel) syncSelections(activeModel); return; }
+    if (pfx === 'f' && document.getElementById('page-ficha').classList.contains('active')) showFicha();
+  }
+}
+
+function syncSelections(identity) {
+  SYNCING_ACTIVE = true;
+  try {
+    PREFIXES.forEach(pfx => {
+      const cap = document.getElementById(pfx + '-cap');
+      if (!cap) return;
+      cap.value = identity.capacidad;
+      onCapChange(pfx);
+      document.getElementById(pfx + '-prov').value = identity.proveedor;
+      onProvChange(pfx);
+      document.getElementById(pfx + '-mod').value = identity.modelo;
+    });
+  } finally {
+    SYNCING_ACTIVE = false;
+  }
+}
+
+function setActiveModel(identity, persist = true) {
+  if (PERSONAL_DIRTY && activeModel?.model_id !== identity.model_id && !confirmDiscardPersonalChanges()) return false;
+  activeModel = identity;
+  syncSelections(identity);
+  const label = `${identity.capacidad.toUpperCase()} | ${identity.proveedor.toUpperCase()} | ${identity.modelo.toUpperCase()}`;
+  document.getElementById('active-model-text').textContent = `${label} · ${identity.model_id}`;
+  document.getElementById('active-model-indicator').classList.add('ok');
+  document.getElementById('change-model-btn').classList.remove('hidden');
+  if (persist) sessionStorage.setItem('ACTIVE_MODEL_ID', identity.model_id);
+  renderHomeActiveModel();
+  loadActiveModelReminders(identity.model_id);
+  return true;
+}
+
+function restoreActiveModel() {
+  const modelId = sessionStorage.getItem('ACTIVE_MODEL_ID');
+  if (!modelId) return;
+  const identity = MASTER_MODELS.find(item => item.model_id === modelId);
+  if (identity) setActiveModel(identity, false);
+  else sessionStorage.removeItem('ACTIVE_MODEL_ID');
+}
+
+function changeActiveModel() {
+  if (PERSONAL_DIRTY && !confirmDiscardPersonalChanges()) return;
+  activeModel = null;
+  sessionStorage.removeItem('ACTIVE_MODEL_ID');
+  document.getElementById('active-model-text').textContent = 'Sin modelo activo';
+  document.getElementById('active-model-indicator').classList.remove('ok');
+  document.getElementById('change-model-btn').classList.add('hidden');
+  renderHomeActiveModel();
+  ACTIVE_ENGINEERING_CHANGES = [];
+  switchPage('home', document.querySelector('[data-page="home"]'));
+  document.getElementById('h-cap').focus();
+}
+
+function confirmDiscardPersonalChanges() {
+  if (!PERSONAL_DIRTY) return true;
+  if (!confirm('Hay cambios de dotación sin guardar. ¿Querés descartarlos?')) return false;
+  PERSONAL_DIRTY = false;
+  PERSONAL_EDITING = false;
+  return true;
+}
+
+function activeModelForSelection(pfx) {
+  const selection = getSel(pfx);
+  const identity = findMasterModel(selection.cap, selection.prov, selection.mod);
+  if (identity && (!activeModel || activeModel.model_id !== identity.model_id) && !setActiveModel(identity)) return activeModel;
+  return identity;
+}
+
+function openActivePage(page) {
+  if (!activeModel) {
+    document.getElementById('home-selection-message').innerHTML = alert_html('warn', 'Seleccioná un modelo antes de continuar.');
+    switchPage('home', document.querySelector('[data-page="home"]'));
+    return;
+  }
+  const button = document.querySelector(`[data-page="${page}"]`);
+  if (!switchPage(page, button)) return;
+  const loaders = {ficha: showFicha, specs: showSpecs, pallets: showPallet, personal: loadPersonal, layouts: showLayout, tiempos: loadTiempos, changes: loadEngineeringChanges};
+  if (loaders[page]) loaders[page]();
+}
+
+function openActiveDashboard() { openActivePage('ficha'); }
+
+function quickModelLabel(item) {
+  return `${item.capacidad.toUpperCase()} · ${item.proveedor.toUpperCase()} · ${item.modelo.toUpperCase()} — ${item.sku_bgh || 'sin SKU'}${item.pnb ? ' — ' + item.pnb : ''}`;
+}
+
+function populateQuickModelSearch() {
+  document.getElementById('quick-model-options').innerHTML = MASTER_MODELS
+    .map(item => `<option value="${htmlEscape(quickModelLabel(item))}"></option>`).join('');
+}
+
+function selectQuickModel() {
+  const input = document.getElementById('quick-model-search');
+  const query = input.value.trim().toLowerCase();
+  if (!query) return;
+  const exact = MASTER_MODELS.find(item => quickModelLabel(item).toLowerCase() === query);
+  const matches = exact ? [exact] : MASTER_MODELS.filter(item => [item.model_id, item.capacidad, item.proveedor, item.modelo, item.sku_bgh, item.pnb].filter(Boolean).some(value => String(value).toLowerCase().includes(query)));
+  const message = document.getElementById('home-selection-message');
+  if (matches.length === 1) {
+    setActiveModel(matches[0]);
+    input.value = quickModelLabel(matches[0]);
+    message.innerHTML = alert_html('ok', 'Modelo activo actualizado.');
+  } else if (!matches.length) message.innerHTML = alert_html('warn', 'No se encontró un modelo con ese criterio.');
+  else message.innerHTML = alert_html('info', `Hay ${matches.length} coincidencias. Elegí una opción de la lista.`);
+}
+
+function renderHomeActiveModel() {
+  const target = document.getElementById('home-active-model');
+  if (!target) return;
+  if (!activeModel) {
+    target.innerHTML = '<div class="empty-state"><strong>Sin modelo activo</strong><span>Usá el selector para iniciar una consulta de ingeniería.</span></div>';
+    return;
+  }
+  target.innerHTML = `<div class="card-title">Modelo activo</div>
+    <div class="model-name">${htmlEscape(activeModel.capacidad.toUpperCase())} · ${htmlEscape(activeModel.proveedor.toUpperCase())} · ${htmlEscape(activeModel.modelo.toUpperCase())}</div>
+    <div class="model-code">${htmlEscape(activeModel.sku_bgh || 'SKU no registrado')}</div>
+    ${activeModel.pnb ? `<span class="badge badge-blue mt-12">${htmlEscape(activeModel.pnb)}</span>` : ''}
+    <div class="text-hint mt-12">${htmlEscape(activeModel.model_id)}</div>
+    <div id="home-engineering-reminders" class="mt-12"></div>
+    <button class="btn btn-primary mt-16" onclick="openActiveDashboard()">Abrir ficha de ingeniería</button>`;
+}
+
+async function loadActiveModelReminders(modelId) {
+  try {
+    const changes = await api(`/modelos/${encodeURIComponent(modelId)}/cambios?status=active&remind_next_production=true`);
+    if (!activeModel || activeModel.model_id !== modelId) return;
+    ACTIVE_ENGINEERING_CHANGES = changes;
+    const target = document.getElementById('home-engineering-reminders');
+    if (target) target.innerHTML = changes.length ? `<div class="engineering-reminder-summary"><strong>⚠ ${changes.length} cambio${changes.length === 1 ? '' : 's'} vigente${changes.length === 1 ? '' : 's'}</strong><span>Hay información que debe revisarse antes de producir este modelo.</span><button class="btn btn-sm" onclick="openActivePage('changes')">Ver cambios</button></div>` : '';
+  } catch (error) {
+    const target = document.getElementById('home-engineering-reminders');
+    if (target && activeModel?.model_id === modelId) target.innerHTML = alert_html('err', htmlEscape(error.message));
+  }
+}
+
+async function loadHomeMetrics() {
+  try {
+    INTEGRITY = await api('/modelos/integridad');
+    const total = INTEGRITY.model_count;
+    const values = [
+      ['Modelos registrados', total],
+      ['Con especificaciones', total - INTEGRITY.products_without_specs.length],
+      ['Con dotación', total - INTEGRITY.products_without_personal.length],
+      ['Con layout', total - INTEGRITY.products_without_layout.length],
+      ['Con tiempos', total - INTEGRITY.products_without_tiempos.length],
+    ];
+    document.getElementById('home-system-metrics').innerHTML = values.map(([label, value]) => `<div class="metric"><div class="metric-value">${value}</div><div class="metric-label mt-4">${label}</div></div>`).join('');
+  } catch (error) {
+    document.getElementById('home-system-metrics').innerHTML = alert_html('err', htmlEscape(error.message));
+  }
 }
 
 function syncLayoutSelectionFromFicha(cap, prov, mod) {
@@ -935,7 +908,7 @@ async function showPallet() {
   const el = document.getElementById('pallet-result');
   if (!cap || !prov || !mod) { el.innerHTML = alert_html('warn', 'Seleccioná capacidad, proveedor y modelo.'); return; }
   try {
-    const d = await api(`/pallets?capacidad=${cap}&proveedor=${prov}&modelo=${mod}`);
+    const d = await api(`/pallets?capacidad=${encodeURIComponent(cap)}&proveedor=${encodeURIComponent(prov)}&modelo=${encodeURIComponent(mod)}`);
     el.innerHTML = renderPalletInfo(d, cap, prov, mod);
   } catch(e) { el.innerHTML = alert_html('err', e.message); }
 }
@@ -948,7 +921,7 @@ async function calcPallets() {
   if (!cant || cant < 1)     { el.innerHTML = alert_html('warn', 'Ingresá una cantidad válida.'); return; }
   try {
     const [info, calc] = await Promise.all([
-      api(`/pallets?capacidad=${cap}&proveedor=${prov}&modelo=${mod}`),
+      api(`/pallets?capacidad=${encodeURIComponent(cap)}&proveedor=${encodeURIComponent(prov)}&modelo=${encodeURIComponent(mod)}`),
       api('/calcular-pallets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -960,32 +933,39 @@ async function calcPallets() {
 }
 
 function renderPalletInfo(d, cap, prov, mod) {
+  const geometryWarning = d.unidades_por_pallet !== d.capas * d.cajas_por_capa;
   return `
+  ${geometryWarning ? alert_html('warn', 'La cantidad declarada no coincide con capas × cajas por capa. Requiere validación de Ingeniería/Logística.') : ''}
   <div class="card">
     <div class="flex justify-between mb-12 flex-wrap gap-8">
       <div>
         <div class="fw-600" style="font-size:15px">${cap.toUpperCase()} · ${prov.toUpperCase()} · ${mod.toUpperCase()}</div>
-        <div class="text-hint mt-4">SKU: <code>${d.sku}</code></div>
+        <div class="text-hint mt-4">SKU: <code>${htmlEscape(d.sku)}</code></div>
       </div>
       <div class="flex gap-8 flex-wrap">
         <span class="badge badge-blue">${cap.toUpperCase()}</span>
-        <span class="badge badge-gray">${d.orientacion}</span>
-        <span class="badge badge-gray">${d.embalaje}</span>
+        <span class="badge badge-gray">${htmlEscape(d.orientacion)}</span>
+        <span class="badge badge-gray">${htmlEscape(d.embalaje)}</span>
       </div>
     </div>
     <div class="grid-2 gap-12">
       <div>
-        <div class="card-title">Configuración de pallet</div>
+        <div class="card-title">Configuración</div>
         <div class="kv">
           <div class="kv-row"><span>Unidades por pallet</span><span>${d.unidades_por_pallet}</span></div>
           <div class="kv-row"><span>Capas</span><span>${d.capas}</span></div>
           <div class="kv-row"><span>Cajas por capa</span><span>${d.cajas_por_capa}</span></div>
-          <div class="kv-row"><span>Dimensiones (L×A×H)</span><span>${d.dim_pallet_mm[0]}×${d.dim_pallet_mm[1]}×${d.dim_pallet_mm[2]} mm</span></div>
-          <div class="kv-row"><span>Peso unitario</span><span>${d.peso_unitario_kg} kg</span></div>
-          <div class="kv-row"><span>Peso máx. pallet</span><span>${d.peso_max_pallet_kg} kg</span></div>
           <div class="kv-row"><span>Apilable hasta</span><span>${d.apilable_hasta} pallet${d.apilable_hasta !== 1 ? 's' : ''}</span></div>
         </div>
-        ${d.notas && d.notas !== 'nan' ? `<div style="margin-top:12px;padding:9px 12px;border-left:2px solid var(--accent-lt);background:var(--accent-lt);border-radius:0 var(--r) var(--r) 0;font-size:12px;color:var(--accent-dk)">${d.notas}</div>` : ''}
+        <div class="card-title mt-20">Dimensiones y peso</div>
+        <div class="kv">
+          <div class="kv-row"><span>Largo</span><span>${d.dim_pallet_mm[0]} mm</span></div>
+          <div class="kv-row"><span>Ancho</span><span>${d.dim_pallet_mm[1]} mm</span></div>
+          <div class="kv-row"><span>Alto</span><span>${d.dim_pallet_mm[2]} mm</span></div>
+          <div class="kv-row"><span>Peso unitario</span><span>${d.peso_unitario_kg} kg</span></div>
+          <div class="kv-row"><span>Peso máx. pallet</span><span>${d.peso_max_pallet_kg} kg</span></div>
+        </div>
+        ${d.notas && d.notas !== 'nan' ? `<div style="margin-top:12px;padding:9px 12px;border-left:2px solid var(--accent-lt);background:var(--accent-lt);border-radius:0 var(--r) var(--r) 0;font-size:12px;color:var(--accent-dk)">${htmlEscape(d.notas)}</div>` : ''}
       </div>
       <div>
         <div class="card-title">Vista de capas</div>
@@ -998,10 +978,12 @@ function renderPalletInfo(d, cap, prov, mod) {
 function renderCalcResult(info, c) {
   const pct = c.resto > 0 ? Math.round((c.resto / c.unidades_por_pallet) * 100) : 100;
   const pesoPallet = (info.peso_unitario_kg || 0) * c.unidades_por_pallet;
+  const geometryWarning = info.unidades_por_pallet !== info.capas * info.cajas_por_capa;
   let alertas = '';
   if (c.alerta_altura) alertas += alert_html('warn', `Altura estimada apilada supera el umbral de depósito (1.850 mm).`);
   if (c.alerta_peso)   alertas += alert_html('warn', `Peso estimado por pallet (${pesoPallet} kg) excede el límite de ${info.peso_max_pallet_kg} kg.`);
-  if (!c.alerta_altura && !c.alerta_peso) alertas = alert_html('ok', 'Sin alertas de altura ni peso para esta configuración.');
+  if (geometryWarning) alertas += alert_html('warn', 'La configuración declarada no coincide con capas × cajas por capa. Requiere validación de Ingeniería/Logística.');
+  if (!c.alerta_altura && !c.alerta_peso && !geometryWarning) alertas = alert_html('ok', 'Sin alertas de altura ni peso para esta configuración.');
 
   return `
   <div class="grid-auto gap-8 mb-12" style="margin-bottom:14px">
@@ -1019,9 +1001,9 @@ function renderCalcResult(info, c) {
           <div class="kv-row"><span>Capas</span><span>${info.capas}</span></div>
           <div class="kv-row"><span>Cajas por capa</span><span>${info.cajas_por_capa}</span></div>
           <div class="kv-row"><span>Dimensiones</span><span>${info.dim_pallet_mm[0]}×${info.dim_pallet_mm[1]}×${info.dim_pallet_mm[2]} mm</span></div>
-          <div class="kv-row"><span>Orientación</span><span>${info.orientacion}</span></div>
-          <div class="kv-row"><span>Embalaje</span><span>${info.embalaje}</span></div>
-          <div class="kv-row"><span>SKU</span><span><code>${info.sku}</code></span></div>
+          <div class="kv-row"><span>Orientación</span><span>${htmlEscape(info.orientacion)}</span></div>
+          <div class="kv-row"><span>Embalaje</span><span>${htmlEscape(info.embalaje)}</span></div>
+          <div class="kv-row"><span>SKU</span><span><code>${htmlEscape(info.sku)}</code></span></div>
         </div>
       </div>
       <div>
@@ -1039,7 +1021,7 @@ function renderCalcResult(info, c) {
 
 async function reloadKB() {
   try {
-    await api('/reload', { method: 'POST' });
+    await apiAdmin('/reload', 'POST');
     setGlobalStatus('KB recargada', 'ok');
     setTimeout(() => setGlobalStatus('Conectado', 'ok'), 2000);
   } catch(e) { setGlobalStatus('Error reload', 'err'); }
@@ -1050,14 +1032,71 @@ async function showFicha() {
   const { cap, prov, mod } = getSel('f');
   const el = document.getElementById('ficha-result');
   if (!cap || !prov || !mod) { el.innerHTML = alert_html('warn', 'Seleccioná los tres campos.'); return; }
+  const identity = activeModelForSelection('f');
+  if (!identity) { el.innerHTML = alert_html('err', 'El modelo no existe en el catálogo maestro.'); return; }
   try {
-    const [info, personal, layout] = await Promise.all([
-      api(`/pallets?capacidad=${cap}&proveedor=${prov}&modelo=${mod}`),
-      api(`/personal?capacidad=${cap}&proveedor=${prov}&modelo=${mod}`).catch(() => null),
-      api(`/layouts?capacidad=${encodeURIComponent(cap)}&proveedor=${encodeURIComponent(prov)}&modelo=${encodeURIComponent(mod)}`).catch(() => null),
+    await ensureChangeConfiguration();
+    const [summary, changes] = await Promise.all([
+      api(`/modelos/${encodeURIComponent(identity.model_id)}/resumen`),
+      api(`/modelos/${encodeURIComponent(identity.model_id)}/cambios`),
     ]);
-    el.innerHTML = renderFicha(info, personal, cap, prov, mod, layout);
+    el.innerHTML = renderModelSummary(summary, changes);
   } catch(e) { el.innerHTML = alert_html('err', e.message); }
+}
+
+function renderModelSummary(summary, engineeringChanges = []) {
+  const identity = summary.identity;
+  const pallet = summary.palletizacion;
+  const personal = summary.personal;
+  const tiempos = summary.tiempos;
+  const specs = summary.specs || {};
+  const specLines = Object.keys(specs);
+  const firstSpec = specLines.length ? specs[specLines[0]] : null;
+  const totalPeople = personal?.tramos?.reduce((sum, tramo) => sum + (Number(tramo.personas) || 0), 0);
+  const criticalTime = tiempos?.tiempos?.length ? Math.max(...tiempos.tiempos) : null;
+  const statusLabels = {palletizacion:'Palletización', specs:'Especificaciones', personal:'Dotación', layout:'Layout', tiempos:'Tiempos'};
+  const statusBadges = Object.entries(summary.data_status).map(([key, value]) => {
+    const config = value === 'available' ? ['badge-green','✓ Disponible','Información registrada'] : value === 'warning' ? ['badge-warn','⚠ Advertencia','Existe información que requiere validación'] : ['badge-gray','— Faltante','No hay información registrada'];
+    return `<div class="metric" title="${config[2]}"><div class="metric-label">${statusLabels[key]}</div><span class="badge ${config[0]}">${config[1]}</span><div class="metric-sub">${config[2]}</div></div>`;
+  }).join('');
+  const metrics = [
+    pallet ? ['Unidades / pallet', pallet.unidades_por_pallet, 'unidades'] : null,
+    personal ? ['Dotación total', totalPeople, 'personas'] : null,
+    tiempos ? ['Ciclo límite', tiempos.limite, 'segundos'] : null,
+    criticalTime !== null ? ['Puesto crítico', criticalTime, 'segundos'] : null,
+    specLines.length ? ['Líneas', specLines.join(', '), `${specLines.length} configuración(es)`] : null,
+    firstSpec?.refrigerante ? ['Refrigerante', firstSpec.refrigerante, 'ficha técnica'] : null,
+  ].filter(Boolean).map(([label, value, unit]) => `<div class="metric"><div class="metric-label">${htmlEscape(label)}</div><div class="metric-value" style="font-size:20px">${htmlEscape(value)}</div><div class="metric-sub">${htmlEscape(unit)}</div></div>`).join('');
+  const activeChanges = engineeringChanges.filter(item => item.status === 'active');
+  const reminders = activeChanges.filter(item => item.remind_next_production);
+  const reminderItems = reminders.slice(0, 5).map(item => `<div class="engineering-reminder-item"><div><span class="badge badge-warn">⚠ ${htmlEscape(changeTypeLabel(item.change_type))}</span><strong>${htmlEscape(item.title)}</strong></div><div class="text-muted">${htmlEscape(item.description)}</div><div class="text-hint">Vigente desde: ${htmlEscape(formatHistoryDate(item.created_at))}</div></div>`).join('');
+  const engineeringSection = `<div class="card mt-12 engineering-memory"><div class="flex justify-between flex-wrap gap-8"><div class="card-title">Cambios y recordatorios de Ingeniería</div><button class="btn btn-sm" onclick="openActivePage('changes')">Ver historial completo</button></div><div class="grid-3 gap-12"><div class="metric"><div class="metric-value">${engineeringChanges.length}</div><div class="metric-label">Cambios registrados</div></div><div class="metric"><div class="metric-value">${activeChanges.length}</div><div class="metric-label">Vigentes</div></div><div class="metric"><div class="metric-value">${reminders.length}</div><div class="metric-label">Recordatorios</div></div></div>${reminders.length ? `<div class="card-title mt-20">⚠ A considerar en próxima producción</div>${reminderItems}` : `<div class="empty-state compact-empty"><strong>Sin recordatorios vigentes</strong><span>${engineeringChanges.length ? 'El historial no contiene recordatorios activos.' : 'Sin cambios de Ingeniería registrados para este modelo.'}</span>${getAdminKey() ? '<button class="btn btn-sm" onclick="openActivePage(\'changes\'); openChangeForm()">Registrar primer cambio</button>' : ''}</div>`}</div>`;
+
+  return `
+    <div class="card" style="border-left:3px solid var(--accent)">
+      <div class="flex justify-between flex-wrap gap-8">
+        <div>
+          <div class="card-title" style="margin-bottom:6px">Modelo activo · ${htmlEscape(identity.model_id)}</div>
+          <div class="fw-600" style="font-size:18px">${htmlEscape(identity.capacidad.toUpperCase())} · ${htmlEscape(identity.proveedor.toUpperCase())} · ${htmlEscape(identity.modelo.toUpperCase())}</div>
+          <div class="text-hint mt-4">SKU: <code>${htmlEscape(identity.sku_bgh || 'No registrado')}</code>${identity.pnb ? ` · PNB: <code>${htmlEscape(identity.pnb)}</code>` : ''}</div>
+        </div>
+      </div>
+      ${summary.warnings.map(message => alert_html('warn', htmlEscape(message))).join('')}
+      <hr>
+      <div class="context-actions" aria-label="Navegación del modelo">
+        <button class="btn btn-sm" onclick="openActivePage('specs')">Ver especificaciones</button>
+        <button class="btn btn-sm" onclick="openActivePage('pallets')">Ver palletización</button>
+        <button class="btn btn-sm" onclick="openActivePage('personal')">Ver dotación</button>
+        <button class="btn btn-sm" onclick="openActivePage('layouts')">Ver layout</button>
+        <button class="btn btn-sm" onclick="openActivePage('tiempos')">Ver tiempos</button>
+        <button class="btn btn-sm" onclick="openActivePage('changes')">Ver cambios de Ingeniería</button>
+      </div>
+      <hr>
+      <div class="card-title">Estado de información</div>
+      <div class="grid-auto mb-12">${statusBadges}</div>
+      <div class="card-title mt-20">Métricas disponibles</div>
+      <div class="grid-auto">${metrics || '<span class="text-muted">No hay métricas disponibles.</span>'}</div>
+    </div>${engineeringSection}`;
 }
 
 function renderFicha(info, per, cap, prov, mod, layout = null) {
@@ -1103,7 +1142,7 @@ function renderFicha(info, per, cap, prov, mod, layout = null) {
       return `
       <div style="display:grid;grid-template-columns:12px 1fr 50px 100px;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
         <span style="width:10px;height:10px;border-radius:50%;background:${col};display:inline-block"></span>
-        <span style="font-size:13px">${t.nombre}</span>
+        <span style="font-size:13px">${htmlEscape(t.nombre)}</span>
         <span style="font-size:14px;font-weight:600;text-align:center">${t.personas}</span>
         <div>
           <div class="progress"><div class="progress-fill" style="width:${pct}%;background:${col}"></div></div>
@@ -1117,12 +1156,12 @@ function renderFicha(info, per, cap, prov, mod, layout = null) {
   <div class="card" style="border-left:3px solid var(--accent)">
     <div class="flex justify-between mb-12 flex-wrap gap-8">
       <div>
-        <div class="fw-600" style="font-size:16px">${nombre}</div>
-        <div class="text-hint mt-4">SKU: <code>${info.sku}</code></div>
+        <div class="fw-600" style="font-size:16px">${htmlEscape(nombre)}</div>
+        <div class="text-hint mt-4">SKU: <code>${htmlEscape(info.sku)}</code></div>
       </div>
       <div class="flex gap-8 flex-wrap">
-        ${per?.ot  ? `<span class="badge badge-blue">${per.ot}</span>` : ''}
-        ${per?.pnb ? `<span class="badge badge-green">${per.pnb}</span>` : ''}
+        ${per?.ot  ? `<span class="badge badge-blue">${htmlEscape(per.ot)}</span>` : ''}
+        ${per?.pnb ? `<span class="badge badge-green">${htmlEscape(per.pnb)}</span>` : ''}
         <span class="badge badge-gray">${cap.toUpperCase()}</span>
       </div>
     </div>
@@ -1141,8 +1180,8 @@ function renderFicha(info, per, cap, prov, mod, layout = null) {
           <div class="kv-row"><span>Peso unitario</span><span>${info.peso_unitario_kg} kg</span></div>
           <div class="kv-row"><span>Peso máx.</span><span>${info.peso_max_pallet_kg} kg</span></div>
           <div class="kv-row"><span>Apilable hasta</span><span>${info.apilable_hasta} pallet${info.apilable_hasta !== 1 ? 's' : ''}</span></div>
-          <div class="kv-row"><span>Orientación</span><span>${info.orientacion}</span></div>
-          <div class="kv-row"><span>Embalaje</span><span>${info.embalaje}</span></div>
+          <div class="kv-row"><span>Orientación</span><span>${htmlEscape(info.orientacion)}</span></div>
+          <div class="kv-row"><span>Embalaje</span><span>${htmlEscape(info.embalaje)}</span></div>
         </div>
       </div>
       <div>
@@ -1157,6 +1196,8 @@ function renderFicha(info, per, cap, prov, mod, layout = null) {
 let PERSONAL_DATA = [];  // tramos actuales editando
 let PERSONAL_META = { nombre_modelo: '', ot: '', pnb: '' };
 let PERSONAL_KEY  = null;
+let PERSONAL_EDITING = false;
+let PERSONAL_DIRTY = false;
 
 const TRAMO_COLORS = ['#2563EB','#16A34A','#D97706','#DC2626','#7C3AED','#0891B2','#DB2777','#65A30D','#92400E','#1D4ED8'];
 
@@ -1168,16 +1209,64 @@ async function loadPersonal() {
   }
   PERSONAL_KEY = { cap, prov, mod };
   try {
-    const d = await api(`/personal?capacidad=${cap}&proveedor=${prov}&modelo=${mod}`);
+    const d = await api(`/personal?capacidad=${encodeURIComponent(cap)}&proveedor=${encodeURIComponent(prov)}&modelo=${encodeURIComponent(mod)}`);
     PERSONAL_DATA = d.tramos.map(t => ({ ...t }));
     PERSONAL_META = { nombre_modelo: d.nombre_modelo || '', ot: d.ot || '', pnb: d.pnb || '' };
-    renderPersonal();
+    PERSONAL_EDITING = false;
+    PERSONAL_DIRTY = false;
+    renderPersonalRead();
   } catch(e) {
-    document.getElementById('personal-result').innerHTML = alert_html('err', e.message);
+    document.getElementById('personal-result').innerHTML = e.status === 404
+      ? `<div class="card empty-state"><strong>Sin datos de dotación</strong><span>No hay una dotación registrada para este modelo.</span>${getAdminKey() ? '<button class="btn btn-primary" onclick="createPersonal()">Crear dotación</button>' : ''}</div>`
+      : alert_html('err', e.message);
   }
 }
 
-function renderPersonal() {
+function renderPersonalRead() {
+  if (!PERSONAL_KEY) return;
+  const total = PERSONAL_DATA.reduce((sum,item)=>sum+Number(item.personas),0);
+  const max = PERSONAL_DATA.length ? PERSONAL_DATA.reduce((a,b)=>a.personas>=b.personas?a:b) : null;
+  const rows = PERSONAL_DATA.map(item => {
+    const percentage = total ? (Number(item.personas)/total)*100 : 0;
+    return `<tr><th>${htmlEscape(item.nombre)}</th><td class="mono">${item.personas}</td><td><div class="staff-share"><div class="progress"><div class="progress-fill" style="width:${percentage}%"></div></div><span>${percentage.toFixed(1)}%</span></div></td></tr>`;
+  }).join('');
+  document.getElementById('personal-result').innerHTML = `
+    <div id="personal-feedback" aria-live="polite"></div>
+    <div class="grid-4 mb-12">
+      <div class="metric accent"><div class="metric-value">${total}</div><div class="metric-label mt-4">Dotación total</div><div class="metric-sub">personas</div></div>
+      <div class="metric"><div class="metric-value">${PERSONAL_DATA.length}</div><div class="metric-label mt-4">Sectores</div></div>
+      <div class="metric"><div class="metric-value">${max ? max.personas : '—'}</div><div class="metric-label mt-4">Mayor dotación</div><div class="metric-sub">${max ? htmlEscape(max.nombre) : 'Sin datos'}</div></div>
+      <div class="metric"><div class="metric-value">${PERSONAL_DATA.length ? (total/PERSONAL_DATA.length).toFixed(1) : '—'}</div><div class="metric-label mt-4">Promedio por sector</div></div>
+    </div>
+    <div class="card"><div class="flex justify-between flex-wrap gap-8 mb-12"><div><div class="card-title" style="margin-bottom:4px">Dotación del modelo</div><div class="text-hint">Vista de consulta · ${PERSONAL_KEY.cap.toUpperCase()} / ${PERSONAL_KEY.prov.toUpperCase()} / ${PERSONAL_KEY.mod.toUpperCase()}</div></div>${getAdminKey() ? '<button class="btn" onclick="enterPersonalEdit()">Editar dotación</button>' : ''}</div>
+      <div class="table-scroll"><table class="technical-table staff-table"><thead><tr><th>Sector / proceso</th><th>Personas</th><th>Participación</th></tr></thead><tbody>${rows}<tr class="compare-total"><th>TOTAL</th><td>${total}</td><td>100%</td></tr></tbody></table></div>
+    </div>`;
+}
+
+function enterPersonalEdit() {
+  if (!getAdminKey()) return;
+  PERSONAL_EDITING = true;
+  PERSONAL_DIRTY = false;
+  renderPersonalEditor();
+}
+
+function createPersonal() {
+  if (!getAdminKey() || !PERSONAL_KEY) return;
+  PERSONAL_DATA = [];
+  PERSONAL_META = {nombre_modelo:'',ot:'',pnb:''};
+  enterPersonalEdit();
+}
+
+function markPersonalDirty() { if (PERSONAL_EDITING) PERSONAL_DIRTY = true; }
+
+async function cancelPersonalEdit() {
+  if (PERSONAL_DIRTY && !confirm('Hay cambios de dotación sin guardar. ¿Querés descartarlos?')) return;
+  PERSONAL_DIRTY = false;
+  PERSONAL_EDITING = false;
+  await loadPersonal();
+}
+
+function renderPersonalEditor() {
   if (!PERSONAL_KEY) return;
   const { cap, prov, mod } = PERSONAL_KEY;
   const total = PERSONAL_DATA.reduce((s, t) => s + Math.max(0, parseInt(t.personas) || 0), 0);
@@ -1189,15 +1278,15 @@ function renderPersonal() {
     <div class="grid-3 gap-12">
       <div class="field">
         <label>Nombre del modelo</label>
-        <input type="text" id="meta-nombre" value="${PERSONAL_META.nombre_modelo}" placeholder="Ej: Midea Inverter 12.000 BTU" oninput="PERSONAL_META.nombre_modelo=this.value" />
+        <input type="text" id="meta-nombre" value="${htmlEscape(PERSONAL_META.nombre_modelo)}" placeholder="Ej: Midea Inverter 12.000 BTU" oninput="PERSONAL_META.nombre_modelo=this.value;markPersonalDirty()" />
       </div>
       <div class="field">
         <label>Orden de trabajo (OT)</label>
-        <input type="text" id="meta-ot" value="${PERSONAL_META.ot}" placeholder="Ej: OT-2024-121" oninput="PERSONAL_META.ot=this.value" />
+        <input type="text" id="meta-ot" value="${htmlEscape(PERSONAL_META.ot)}" placeholder="Ej: OT-2024-121" oninput="PERSONAL_META.ot=this.value;markPersonalDirty()" />
       </div>
       <div class="field">
         <label>PNB</label>
-        <input type="text" id="meta-pnb" value="${PERSONAL_META.pnb}" placeholder="Ej: PNB-MD12-INV" oninput="PERSONAL_META.pnb=this.value" />
+        <input type="text" id="meta-pnb" value="${htmlEscape(PERSONAL_META.pnb)}" placeholder="Ej: PNB-MD12-INV" oninput="PERSONAL_META.pnb=this.value;markPersonalDirty()" />
       </div>
     </div>
   </div>`;
@@ -1217,7 +1306,7 @@ function renderPersonal() {
     <div class="metric">
       <div class="metric-label">Mayor sector</div>
       <div class="metric-value" id="pm-mayor">${PERSONAL_DATA.length ? PERSONAL_DATA[mayorIdx].personas : 0}</div>
-      <div class="metric-sub" id="pm-mayor-nom">${PERSONAL_DATA.length ? PERSONAL_DATA[mayorIdx].nombre : '—'}</div>
+      <div class="metric-sub" id="pm-mayor-nom">${PERSONAL_DATA.length ? htmlEscape(PERSONAL_DATA[mayorIdx].nombre) : '—'}</div>
     </div>
     <div class="metric">
       <div class="metric-label">Promedio</div>
@@ -1238,10 +1327,10 @@ function renderPersonal() {
       </div>
       <div style="display:flex;align-items:center;gap:8px">
         <span style="width:10px;height:10px;border-radius:50%;background:${col};flex-shrink:0"></span>
-        <input class="tramo-nombre" value="${t.nombre}" oninput="PERSONAL_DATA[${i}].nombre=this.value" />
+        <input class="tramo-nombre" value="${htmlEscape(t.nombre)}" oninput="PERSONAL_DATA[${i}].nombre=this.value;markPersonalDirty()" />
       </div>
       <input class="tramo-cant" type="number" min="0" max="999" value="${t.personas}"
-        oninput="PERSONAL_DATA[${i}].personas=Math.max(0,parseInt(this.value)||0);refreshTramosMetrics()" />
+        oninput="PERSONAL_DATA[${i}].personas=this.valueAsNumber;markPersonalDirty();refreshTramosMetrics()" />
       <div>
         <div class="progress" style="margin-bottom:3px">
           <div class="progress-fill" id="pbar-${i}" style="width:${pct}%;background:${col}"></div>
@@ -1255,6 +1344,7 @@ function renderPersonal() {
   }).join('');
 
   const editorHtml = `
+  <div class="alert alert-warn"><strong>MODO EDICIÓN</strong><span>Los cambios no se aplican hasta guardar.</span></div>
   <div class="card">
     <div class="flex justify-between mb-12 flex-wrap gap-8">
       <div class="card-title" style="margin-bottom:0">
@@ -1262,7 +1352,7 @@ function renderPersonal() {
         Distribución por sector — ${cap.toUpperCase()} / ${prov.toUpperCase()} / ${mod.toUpperCase()}
       </div>
       <div class="flex gap-8 flex-wrap">
-        <span id="per-save-badge" class="badge badge-green hidden">✓ Guardado</span>
+        <button class="btn" onclick="cancelPersonalEdit()">Cancelar</button>
         <button class="btn btn-ok" onclick="savePersonal()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
           Guardar cambios
@@ -1316,40 +1406,46 @@ function moveTramo(i, dir) {
   const j = i + dir;
   if (j < 0 || j >= PERSONAL_DATA.length) return;
   [PERSONAL_DATA[i], PERSONAL_DATA[j]] = [PERSONAL_DATA[j], PERSONAL_DATA[i]];
-  renderPersonal();
+  markPersonalDirty();
+  renderPersonalEditor();
 }
 
 function deleteTramo(i) {
   PERSONAL_DATA.splice(i, 1);
-  renderPersonal();
+  markPersonalDirty();
+  renderPersonalEditor();
 }
 
 function addTramo() {
   const nombre = (document.getElementById('new-tramo-nombre').value || '').trim();
-  const personas = Math.max(1, parseInt(document.getElementById('new-tramo-cant').value) || 1);
+  const personas = Number(document.getElementById('new-tramo-cant').value);
   if (!nombre) { document.getElementById('new-tramo-nombre').focus(); return; }
+  if (!Number.isInteger(personas) || personas < 0) { alert('Ingresá una cantidad de personas válida (0 o mayor).'); return; }
+  if (PERSONAL_DATA.some(item => item.nombre.trim().toLowerCase() === nombre.toLowerCase())) { alert('Ya existe un sector con ese nombre exacto.'); return; }
   PERSONAL_DATA.push({ nombre, personas });
   document.getElementById('new-tramo-nombre').value = '';
   document.getElementById('new-tramo-cant').value = '1';
-  renderPersonal();
+  markPersonalDirty();
+  renderPersonalEditor();
 }
 
 async function savePersonal() {
-  if (!PERSONAL_KEY) return;
+  if (!PERSONAL_KEY || !getAdminKey()) return;
+  const validation = ComparisonEngine.validatePersonnelRows(PERSONAL_DATA);
+  if (!validation.valid) { alert(validation.error); return; }
   const { cap, prov, mod } = PERSONAL_KEY;
   try {
-    await api(`/personal?capacidad=${cap}&proveedor=${prov}&modelo=${mod}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        nombre_modelo: PERSONAL_META.nombre_modelo,
-        ot:            PERSONAL_META.ot,
-        pnb:           PERSONAL_META.pnb,
-        tramos:        PERSONAL_DATA,
-      }),
+    await apiAdmin(`/personal?capacidad=${encodeURIComponent(cap)}&proveedor=${encodeURIComponent(prov)}&modelo=${encodeURIComponent(mod)}`, 'POST', {
+      nombre_modelo: PERSONAL_META.nombre_modelo,
+      ot: PERSONAL_META.ot,
+      pnb: PERSONAL_META.pnb,
+      tramos: PERSONAL_DATA,
     });
-    const badge = document.getElementById('per-save-badge');
-    if (badge) { badge.classList.remove('hidden'); setTimeout(() => badge.classList.add('hidden'), 2500); }
+    PERSONAL_DIRTY = false;
+    PERSONAL_EDITING = false;
+    await loadPersonal();
+    const feedback = document.getElementById('personal-feedback');
+    if (feedback) feedback.innerHTML = alert_html('ok', 'Dotación actualizada correctamente.');
   } catch(e) { alert('Error al guardar: ' + e.message); }
 }
 
@@ -1360,9 +1456,13 @@ async function showSpecs() {
   const el = document.getElementById('specs-result');
   if (!cap || !prov || !mod || !lin) { el.innerHTML = alert_html('warn', 'Completá todos los campos.'); return; }
   try {
-    const d = await api(`/specs?capacidad=${cap}&proveedor=${prov}&modelo=${mod}&linea=${lin}`);
+    const d = await api(`/specs?capacidad=${encodeURIComponent(cap)}&proveedor=${encodeURIComponent(prov)}&modelo=${encodeURIComponent(mod)}&linea=${encodeURIComponent(lin)}`);
     el.innerHTML = renderSpecs(d, cap, prov, mod, lin);
-  } catch(e) { el.innerHTML = alert_html('err', e.message); }
+  } catch(e) {
+    el.innerHTML = e.status === 404
+      ? `<div class="card empty-state"><strong>Sin especificaciones</strong><span>No hay una ficha técnica registrada para este modelo y línea.</span></div>`
+      : alert_html('err', e.message);
+  }
 }
 
 function renderSpecs(d, cap, prov, mod, lin) {
@@ -1370,35 +1470,42 @@ function renderSpecs(d, cap, prov, mod, lin) {
   <div class="card">
     <div class="flex justify-between mb-12 flex-wrap gap-8">
       <div class="fw-600" style="font-size:15px">${cap.toUpperCase()} · ${prov.toUpperCase()} · ${mod.toUpperCase()} — <span class="badge badge-blue">${lin.toUpperCase()}</span></div>
-      <span class="badge badge-gray">${d.refrigerante}</span>
+      <span class="badge badge-gray">${htmlEscape(d.refrigerante)}</span>
     </div>
-    <div class="grid-2 gap-12">
+    <div class="grid-3 gap-12 technical-sections">
       <div>
-        <div class="card-title">Rendimiento</div>
+        <div class="card-title">Producto y eléctrico</div>
         <div class="kv">
+          ${activeModel?.sku_bgh ? `<div class="kv-row"><span>SKU</span><span><code>${htmlEscape(activeModel.sku_bgh)}</code></span></div>` : ''}
           <div class="kv-row"><span>BTUs</span><span>${parseInt(d.btus).toLocaleString()}</span></div>
           <div class="kv-row"><span>Consumo</span><span>${d.consumo_w} W</span></div>
           <div class="kv-row"><span>Eficiencia SEER</span><span>${d.eficiencia_seer}</span></div>
-          <div class="kv-row"><span>Refrigerante</span><span>${d.refrigerante}</span></div>
+          <div class="kv-row"><span>Refrigerante</span><span>${htmlEscape(d.refrigerante)}</span></div>
+          <div class="kv-row"><span>Línea</span><span>${htmlEscape(lin.toUpperCase())}</span></div>
         </div>
       </div>
       <div>
-        <div class="card-title">Ruido y dimensiones</div>
+        <div class="card-title">Unidad interior</div>
         <div class="kv">
-          <div class="kv-row"><span>Ruido UI</span><span>${d.ruido_ui_db} dB</span></div>
-          <div class="kv-row"><span>Ruido UE</span><span>${d.ruido_ue_db} dB</span></div>
-          <div class="kv-row"><span>Dim. UI (L×A×H)</span><span>${d.ui_dim_mm[0]}×${d.ui_dim_mm[1]}×${d.ui_dim_mm[2]} mm</span></div>
-          <div class="kv-row"><span>Dim. UE (L×A×H)</span><span>${d.ue_dim_mm[0]}×${d.ue_dim_mm[1]}×${d.ue_dim_mm[2]} mm</span></div>
+          <div class="kv-row"><span>Nivel sonoro</span><span>${d.ruido_ui_db} dB</span></div>
+          <div class="kv-row"><span>Dimensiones L×A×H</span><span>${d.ui_dim_mm[0]}×${d.ui_dim_mm[1]}×${d.ui_dim_mm[2]} mm</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="card-title">Unidad exterior</div>
+        <div class="kv">
+          <div class="kv-row"><span>Nivel sonoro</span><span>${d.ruido_ue_db} dB</span></div>
+          <div class="kv-row"><span>Dimensiones L×A×H</span><span>${d.ue_dim_mm[0]}×${d.ue_dim_mm[1]}×${d.ue_dim_mm[2]} mm</span></div>
         </div>
       </div>
     </div>
-    ${d.nota ? `<div style="margin-top:12px;padding:9px 12px;border-left:2px solid var(--accent-lt);background:var(--accent-lt);border-radius:0 var(--r) var(--r) 0;font-size:12px;color:var(--accent-dk)">${d.nota}</div>` : ''}
+    ${d.nota ? `<div style="margin-top:12px;padding:9px 12px;border-left:2px solid var(--accent-lt);background:var(--accent-lt);border-radius:0 var(--r) var(--r) 0;font-size:12px;color:var(--accent-dk)">${htmlEscape(d.nota)}</div>` : ''}
   </div>`;
 }
 
 async function reloadSpecs() {
   try {
-    await api('/reload-specs', { method: 'POST' });
+    await apiAdmin('/reload-specs', 'POST');
     setGlobalStatus('Specs recargadas', 'ok');
     setTimeout(() => setGlobalStatus('Conectado', 'ok'), 2000);
   } catch(e) { setGlobalStatus('Error', 'err'); }
@@ -1427,7 +1534,7 @@ async function showLayout() {
     const d = await api(`/layouts?capacidad=${encodeURIComponent(cap)}&proveedor=${encodeURIComponent(prov)}&modelo=${encodeURIComponent(mod)}`);
     el.innerHTML = renderLayoutEditor(d, cap, prov, mod, true);
   } catch(e) {
-    el.innerHTML = renderLayoutEditor({}, cap, prov, mod, false);
+    el.innerHTML = e.status === 404 ? renderLayoutEditor({}, cap, prov, mod, false) : alert_html('err', e.message);
   }
 }
 
@@ -1448,6 +1555,7 @@ function renderLayoutEditor(d, cap, prov, mod, exists) {
   const estado = d.estado || 'Link disponible';
   const version = d.version || '';
   const fecha = d.fecha || '';
+  const invalidDate = fecha && !isValidIsoDate(fecha);
 
   return `
   <div class="card">
@@ -1463,6 +1571,8 @@ function renderLayoutEditor(d, cap, prov, mod, exists) {
         <span class="badge badge-gray">${mod.toUpperCase()}</span>
       </div>
     </div>
+
+    ${invalidDate ? alert_html('warn', `Fecha registrada: ${htmlEscape(fecha)} · Fecha pendiente de validación.`) : ''}
 
     ${url ? `
       <div class="alert alert-info mb-12">
@@ -1525,6 +1635,13 @@ function renderLayoutEditor(d, cap, prov, mod, exists) {
   </div>`;
 }
 
+function isValidIsoDate(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || '');
+  if (!match) return false;
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  return date.getUTCFullYear() === Number(match[1]) && date.getUTCMonth() === Number(match[2]) - 1 && date.getUTCDate() === Number(match[3]);
+}
+
 function currentLayoutSelectionOrWarn() {
   const sel = getSel('l');
   const el = document.getElementById('layout-result');
@@ -1554,11 +1671,7 @@ async function saveLayoutLink() {
   }
 
   try {
-    await api(`/layouts?capacidad=${encodeURIComponent(sel.cap)}&proveedor=${encodeURIComponent(sel.prov)}&modelo=${encodeURIComponent(sel.mod)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    await apiAdmin(`/layouts?capacidad=${encodeURIComponent(sel.cap)}&proveedor=${encodeURIComponent(sel.prov)}&modelo=${encodeURIComponent(sel.mod)}`, 'PUT', body);
     setGlobalStatus('Layout guardado', 'ok');
     showLayout();
   } catch(e) {
@@ -1571,9 +1684,7 @@ async function deleteLayoutLink() {
   if (!sel) return;
 
   try {
-    await api(`/layouts?capacidad=${encodeURIComponent(sel.cap)}&proveedor=${encodeURIComponent(sel.prov)}&modelo=${encodeURIComponent(sel.mod)}`, {
-      method: 'DELETE',
-    });
+    await apiAdmin(`/layouts?capacidad=${encodeURIComponent(sel.cap)}&proveedor=${encodeURIComponent(sel.prov)}&modelo=${encodeURIComponent(sel.mod)}`, 'DELETE');
     setGlobalStatus('Layout eliminado', 'ok');
     document.getElementById('layout-result').innerHTML = renderLayoutEditor({}, sel.cap, sel.prov, sel.mod, false);
   } catch(e) {
@@ -1591,14 +1702,15 @@ function copyLayoutLink() {
 
 async function reloadLayouts() {
   try {
-    await api('/reload-layouts', { method: 'POST' });
+    await apiAdmin('/reload-layouts', 'POST');
     document.getElementById('layout-result').innerHTML = alert_html('ok', 'Layouts recargados correctamente.');
   } catch(e) { document.getElementById('layout-result').innerHTML = alert_html('err', e.message); }
 }
 
 /* ── Admin ────────────────────────────── */
-function getAdminKey() { return localStorage.getItem('ADMIN_API_KEY') || ''; }
-function setAdminKey(k) { k ? localStorage.setItem('ADMIN_API_KEY', k) : localStorage.removeItem('ADMIN_API_KEY'); }
+let ADMIN_API_KEY = '';
+function getAdminKey() { return ADMIN_API_KEY; }
+function setAdminKey(k) { ADMIN_API_KEY = k || ''; }
 
 function setAdminStatus(text, kind = '') {
   const el = document.getElementById('admin-status');
@@ -1606,19 +1718,63 @@ function setAdminStatus(text, kind = '') {
   el.innerHTML = `<span class="dot"></span>${text}`;
 }
 
-function adminLogin() {
+async function adminLogin() {
   const key = document.getElementById('adminKey').value.trim();
   if (!key) { alert('Ingresá una API Key.'); return; }
   setAdminKey(key);
-  document.getElementById('admin-panel').classList.remove('hidden');
-  setAdminStatus('Conectado', 'ok');
+  setAdminStatus('Verificando…');
+  try {
+    await apiAdmin('/admin/verify');
+    document.getElementById('admin-panel').classList.remove('hidden');
+    document.getElementById('adminKey').value = '';
+    setAdminStatus('Conectado', 'ok');
+    loadIntegrityPanel();
+    if (document.getElementById('page-personal').classList.contains('active')) loadPersonal();
+    if (document.getElementById('page-changes').classList.contains('active')) loadEngineeringChanges();
+    renderHomeActiveModel();
+    if (activeModel) loadActiveModelReminders(activeModel.model_id);
+  } catch (e) {
+    setAdminKey('');
+    document.getElementById('admin-panel').classList.add('hidden');
+    setAdminStatus('No autorizado', 'err');
+    alert(e.message);
+  }
+}
+
+async function loadIntegrityPanel() {
+  const target = document.getElementById('integrity-panel');
+  try {
+    const data = await api('/modelos/integridad');
+    const warningModels = data.models_with_warnings || [];
+    const cards = [
+      ['Productos', data.model_count], ['Sin specs', data.products_without_specs.length],
+      ['Sin dotación', data.products_without_personal.length], ['Sin layout', data.products_without_layout.length],
+      ['Sin tiempos', data.products_without_tiempos.length], ['Con advertencias', warningModels.length],
+    ];
+    const sharedSkus = Object.entries(data.duplicate_sku_references || {});
+    target.innerHTML = `<div class="grid-auto">${cards.map(([label,value]) => `<div class="metric"><div class="metric-value">${value}</div><div class="metric-label mt-4">${label}</div></div>`).join('')}</div>
+      <div class="grid-2 mt-16">
+        <div><div class="fw-600 mb-12">Anomalías de relación</div>
+          ${data.specs_without_product.length ? data.specs_without_product.map(item => `<div class="data-issue">⚠ Spec sin producto: <code>${htmlEscape(item)}</code></div>`).join('') : '<div class="text-muted">Sin specs huérfanas.</div>'}
+        </div>
+        <div><div class="fw-600 mb-12">Referencias compartidas</div>
+          ${sharedSkus.length ? sharedSkus.map(([sku,ids]) => `<div class="data-issue">⚠ <code>${htmlEscape(sku)}</code><br><span class="text-hint">${ids.map(htmlEscape).join(', ')}</span></div>`).join('') : '<div class="text-muted">Sin SKU compartidos.</div>'}
+        </div>
+      </div>`;
+  } catch (error) { target.innerHTML = alert_html('err', htmlEscape(error.message)); }
 }
 
 function adminLogout() {
+  if (PERSONAL_DIRTY && !confirmDiscardPersonalChanges()) return;
   setAdminKey('');
   document.getElementById('admin-panel').classList.add('hidden');
   clearGrid('pallet'); clearGrid('specs');
   setAdminStatus('Desconectado');
+  if (document.getElementById('page-personal').classList.contains('active')) loadPersonal();
+  closeChangeForm();
+  if (document.getElementById('page-changes').classList.contains('active')) loadEngineeringChanges();
+  renderHomeActiveModel();
+  if (activeModel) loadActiveModelReminders(activeModel.model_id);
 }
 
 function switchAdminTab(which) {
@@ -1631,10 +1787,7 @@ function switchAdminTab(which) {
 async function apiAdmin(path, method = 'GET', body = null) {
   const headers = { 'X-API-Key': getAdminKey() };
   if (body && method !== 'GET') headers['Content-Type'] = 'application/json';
-  const r = await fetch(base() + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
-  if (!r.ok) throw new Error(r.status + ' — ' + await r.text());
-  const ct = r.headers.get('content-type') || '';
-  return ct.includes('json') ? r.json() : r.text();
+  return api(path, { method, headers, body: body ? JSON.stringify(body) : undefined });
 }
 
 /* ── CSV ↔ Grid ─────────────────────── */
@@ -1822,8 +1975,10 @@ async function saveCsvGrid() {
     if (!GRID_DATA.pallet.length) { alert('No hay datos para guardar. Cargá primero del servidor.'); return; }
     setAdminStatus('Guardando…');
     const csv = rowsToCsv(GRID_DATA.pallet, PALLET_COLS);
-    await apiAdmin('/admin/csv/replace', 'POST', { csv_text: csv });
-    setAdminStatus(`Guardado (${GRID_DATA.pallet.length} filas)`, 'ok');
+    const result = await apiAdmin('/admin/csv/replace', 'POST', { csv_text: csv });
+    if (result.catalog_status !== 'synchronized') throw new Error('CSV guardado, pero el catálogo maestro no confirmó la sincronización.');
+    await refreshCatalogAfterPalletSave();
+    setAdminStatus(`Datos guardados (${GRID_DATA.pallet.length} filas). Catálogo maestro sincronizado.`, 'ok');
   } catch(e) { setAdminStatus('Error', 'err'); alert(e.message); }
 }
 
@@ -1882,6 +2037,315 @@ function saveSpecsText() { saveSpecsGrid(); }
 function exportCsv() {}
 function importFile() {}
 
+// ================================
+// MEMORIA DE INGENIERÍA
+// ================================
+let CHANGE_CONFIG = {change_types:{}, statuses:{}};
+let ENGINEERING_CHANGES = [];
+let EDITING_CHANGE_ID = null;
+
+function changeTypeLabel(value) { return CHANGE_CONFIG.change_types[value] || value || 'Sin categoría'; }
+function changeStatusLabel(value) { return CHANGE_CONFIG.statuses[value] || value || 'Sin estado'; }
+function formatHistoryDate(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : new Intl.DateTimeFormat('es-AR', {dateStyle:'short', timeStyle:'short'}).format(date);
+}
+
+async function ensureChangeConfiguration() {
+  if (Object.keys(CHANGE_CONFIG.change_types).length) return;
+  CHANGE_CONFIG = await api('/cambios/configuracion');
+  const fill = (id, values, emptyLabel) => {
+    const select = document.getElementById(id);
+    const current = select.value;
+    select.innerHTML = emptyLabel ? `<option value="">${emptyLabel}</option>` : '';
+    Object.entries(values).forEach(([value, label]) => select.add(new Option(label, value)));
+    if ([...select.options].some(option => option.value === current)) select.value = current;
+  };
+  fill('changes-status-filter', CHANGE_CONFIG.statuses, 'Todos');
+  fill('changes-type-filter', CHANGE_CONFIG.change_types, 'Todas');
+  fill('change-type', CHANGE_CONFIG.change_types, '');
+  fill('change-status', CHANGE_CONFIG.statuses, '');
+}
+
+async function loadEngineeringChanges() {
+  if (!activeModel) return;
+  const requestedModelId = activeModel.model_id;
+  const message = document.getElementById('changes-message');
+  try {
+    await ensureChangeConfiguration();
+    document.getElementById('changes-model-heading').textContent = `${activeModel.capacidad.toUpperCase()} · ${activeModel.proveedor.toUpperCase()} · ${activeModel.modelo.toUpperCase()} · ${activeModel.sku_bgh || 'SKU no registrado'} · ${activeModel.model_id}`;
+    document.getElementById('new-change-btn').classList.toggle('hidden', !getAdminKey());
+    const params = new URLSearchParams();
+    const statusFilter = document.getElementById('changes-status-filter').value;
+    const typeFilter = document.getElementById('changes-type-filter').value;
+    const reminderFilter = document.getElementById('changes-reminder-filter').value;
+    if (statusFilter) params.set('status', statusFilter);
+    if (typeFilter) params.set('change_type', typeFilter);
+    if (reminderFilter) params.set('remind_next_production', reminderFilter);
+    const changes = await api(`/modelos/${encodeURIComponent(requestedModelId)}/cambios?${params}`);
+    if (!activeModel || activeModel.model_id !== requestedModelId) return;
+    ENGINEERING_CHANGES = changes;
+    renderEngineeringChanges();
+    message.innerHTML = '';
+  } catch (error) { message.innerHTML = alert_html('err', htmlEscape(error.message)); }
+}
+
+function renderEngineeringChanges() {
+  const body = document.getElementById('changes-table-body');
+  body.innerHTML = ENGINEERING_CHANGES.length ? ENGINEERING_CHANGES.map(item => `<tr class="history-row${item.status === 'active' && item.remind_next_production ? ' is-reminder' : ''}" tabindex="0" onclick="showEngineeringChange('${htmlEscape(item.change_id)}')" onkeydown="if(event.key==='Enter')showEngineeringChange('${htmlEscape(item.change_id)}')"><td><code>${htmlEscape(item.change_id)}</code></td><td>${htmlEscape(changeStatusLabel(item.status))}</td><td>${htmlEscape(changeTypeLabel(item.change_type))}</td><td>${htmlEscape(item.title)}</td><td>${htmlEscape(item.sector || '—')}</td><td>${htmlEscape(formatHistoryDate(item.created_at))}</td><td>${item.remind_next_production ? '⚠ Sí' : '— No'}</td></tr>`).join('') : `<tr><td colspan="7"><div class="empty-state compact-empty"><strong>Sin cambios de Ingeniería registrados para este modelo.</strong><span>La memoria técnica comenzará cuando se registre el primer cambio.</span>${getAdminKey() ? '<button class="btn btn-sm" onclick="openChangeForm()">Registrar primer cambio</button>' : ''}</div></td></tr>`;
+  document.getElementById('change-detail').innerHTML = '<div class="empty-state"><strong>Seleccioná un cambio</strong><span>El detalle técnico se mostrará aquí.</span></div>';
+}
+
+function showEngineeringChange(changeId) {
+  const item = ENGINEERING_CHANGES.find(change => change.change_id === changeId);
+  if (!item) return;
+  const detailRows = [
+    ['Estado',changeStatusLabel(item.status)],['Categoría',changeTypeLabel(item.change_type)],['Sector / proceso',item.sector],
+    ['Material anterior',item.old_code],['Material nuevo',item.new_code],['Motivo',item.reason],
+    ['Creado',formatHistoryDate(item.created_at)],['Actualizado',formatHistoryDate(item.updated_at)],
+    ['Responsable',item.created_by],['Recordar próxima producción',item.remind_next_production ? 'Sí' : 'No'],['Observaciones',item.notes],
+  ];
+  document.getElementById('change-detail').innerHTML = `<div class="flex justify-between gap-8"><div><div class="card-title">${htmlEscape(item.change_id)}</div><div class="fw-600">${htmlEscape(item.title)}</div></div>${getAdminKey() ? `<button class="btn btn-sm" onclick="openChangeForm('${htmlEscape(item.change_id)}')">Editar</button>` : ''}</div><div class="engineering-description mt-16">${htmlEscape(item.description)}</div><div class="kv mt-16">${detailRows.filter(([,value])=>value !== null && value !== undefined && value !== '').map(([label,value])=>`<div class="kv-row"><span>${htmlEscape(label)}</span><span>${htmlEscape(value)}</span></div>`).join('')}</div>`;
+}
+
+async function openChangeForm(changeId = null) {
+  if (!getAdminKey() || !activeModel) return;
+  await ensureChangeConfiguration();
+  const item = changeId ? ENGINEERING_CHANGES.find(change => change.change_id === changeId) : null;
+  EDITING_CHANGE_ID = item?.change_id || null;
+  document.getElementById('change-form').reset();
+  document.getElementById('change-form-title').textContent = item ? `Editar ${item.change_id}` : 'Registrar cambio';
+  document.getElementById('change-form-model').textContent = `Modelo fijo: ${activeModel.capacidad.toUpperCase()} · ${activeModel.proveedor.toUpperCase()} · ${activeModel.modelo.toUpperCase()} · ${activeModel.model_id}`;
+  document.getElementById('change-type').value = item?.change_type || 'engineering_observation';
+  document.getElementById('change-title').value = item?.title || '';
+  document.getElementById('change-sector').value = item?.sector || '';
+  document.getElementById('change-description').value = item?.description || '';
+  document.getElementById('change-old-code').value = item?.old_code || '';
+  document.getElementById('change-new-code').value = item?.new_code || '';
+  document.getElementById('change-reason').value = item?.reason || '';
+  document.getElementById('change-created-by').value = item?.created_by || '';
+  document.getElementById('change-status').value = item?.status || 'evaluation';
+  document.getElementById('change-notes').value = item?.notes || '';
+  document.getElementById('change-reminder').checked = Boolean(item?.remind_next_production);
+  toggleMaterialFields();
+  document.getElementById('change-form-card').classList.remove('hidden');
+  document.getElementById('change-title').focus();
+}
+
+function toggleMaterialFields() {
+  document.getElementById('change-material-fields').classList.toggle('material-fields-muted', document.getElementById('change-type').value !== 'material_component');
+}
+
+function closeChangeForm() {
+  EDITING_CHANGE_ID = null;
+  document.getElementById('change-form').reset();
+  document.getElementById('change-form-card').classList.add('hidden');
+}
+
+function changeFormPayload() {
+  const value = id => document.getElementById(id).value.trim() || null;
+  return {
+    change_type: document.getElementById('change-type').value,
+    title: value('change-title'), sector: value('change-sector'), description: value('change-description'),
+    old_code: value('change-old-code'), new_code: value('change-new-code'), reason: value('change-reason'),
+    status: document.getElementById('change-status').value,
+    remind_next_production: document.getElementById('change-reminder').checked,
+    created_by: value('change-created-by'), notes: value('change-notes'),
+  };
+}
+
+async function saveEngineeringChange(event) {
+  event.preventDefault();
+  if (!activeModel || !getAdminKey()) return;
+  const message = document.getElementById('changes-message');
+  try {
+    const wasEditing = Boolean(EDITING_CHANGE_ID);
+    const item = EDITING_CHANGE_ID
+      ? await apiAdmin(`/cambios/${encodeURIComponent(EDITING_CHANGE_ID)}`, 'PATCH', changeFormPayload())
+      : await apiAdmin(`/modelos/${encodeURIComponent(activeModel.model_id)}/cambios`, 'POST', changeFormPayload());
+    closeChangeForm();
+    await loadEngineeringChanges();
+    await loadActiveModelReminders(activeModel.model_id);
+    message.innerHTML = alert_html('ok', `Cambio ${htmlEscape(item.change_id)} ${wasEditing ? 'actualizado' : 'registrado'} correctamente.`);
+    if (document.getElementById('page-ficha').classList.contains('active')) await showFicha();
+  } catch (error) { message.innerHTML = alert_html('err', htmlEscape(error.message)); }
+}
+
+// ================================
+// COMPARADOR DE MODELOS
+// ================================
+let COMPARE_SUMMARIES = null;
+
+function comparisonOption(item) {
+  return `${item.capacidad.toUpperCase()} · ${item.proveedor.toUpperCase()} · ${item.modelo.toUpperCase()} — ${item.sku_bgh || 'sin SKU'}`;
+}
+
+function populateComparisonSelectors() {
+  const options = '<option value="">— Seleccionar modelo —</option>' + MASTER_MODELS.map(item => `<option value="${item.model_id}">${htmlEscape(comparisonOption(item))}</option>`).join('');
+  ['compare-a','compare-b'].forEach(id => {
+    const select = document.getElementById(id);
+    const current = select.value;
+    select.innerHTML = options;
+    if (MASTER_MODELS.some(item => item.model_id === current)) select.value = current;
+  });
+}
+
+function openComparator() {
+  if (!switchPage('compare', document.querySelector('[data-page="compare"]'))) return;
+  populateComparisonSelectors();
+  if (activeModel && !document.getElementById('compare-a').value) document.getElementById('compare-a').value = activeModel.model_id;
+  document.getElementById('compare-message').innerHTML = '';
+}
+
+function onCompareSelectionChange() {
+  document.getElementById('compare-message').innerHTML = '';
+}
+
+function clearComparison() {
+  document.getElementById('compare-a').value = activeModel?.model_id || '';
+  document.getElementById('compare-b').value = '';
+  document.getElementById('compare-results').innerHTML = '';
+  document.getElementById('compare-message').innerHTML = '';
+  document.getElementById('compare-only-diffs').checked = false;
+  COMPARE_SUMMARIES = null;
+}
+
+async function swapComparedModels() {
+  const a = document.getElementById('compare-a'), b = document.getElementById('compare-b');
+  [a.value, b.value] = [b.value, a.value];
+  if (a.value && b.value) await compareModels();
+}
+
+async function compareModels() {
+  const idA = document.getElementById('compare-a').value;
+  const idB = document.getElementById('compare-b').value;
+  const message = document.getElementById('compare-message');
+  if (!idA || !idB) { message.innerHTML = alert_html('warn', 'Seleccioná Modelo A y Modelo B.'); return; }
+  if (idA === idB) { message.innerHTML = alert_html('warn', 'Seleccioná dos modelos diferentes para realizar la comparación.'); return; }
+  message.innerHTML = alert_html('info', 'Cargando fichas de ingeniería…');
+  try {
+    const [a, b] = await Promise.all([api(`/modelos/${encodeURIComponent(idA)}/resumen`), api(`/modelos/${encodeURIComponent(idB)}/resumen`)]);
+    COMPARE_SUMMARIES = {a, b};
+    document.getElementById('compare-results').innerHTML = renderComparison(a, b);
+    message.innerHTML = '';
+    applyComparisonFilter();
+  } catch (error) { message.innerHTML = alert_html('err', htmlEscape(error.message)); }
+}
+
+function comparisonIdentity(summary, side) {
+  const item = summary.identity;
+  return `<div class="compare-model-head"><span class="compare-side">Modelo ${side}</span><div class="model-name">${htmlEscape(item.capacidad.toUpperCase())} · ${htmlEscape(item.proveedor.toUpperCase())} · ${htmlEscape(item.modelo.toUpperCase())}</div><div class="model-code">${htmlEscape(item.sku_bgh || 'SKU no registrado')}</div>${item.pnb ? `<span class="badge badge-blue">${htmlEscape(item.pnb)}</span>` : ''}<div class="text-hint">${htmlEscape(item.model_id)}</div></div>`;
+}
+
+function comparisonValue(value, unit = '') {
+  return value === null || value === undefined ? '<span class="missing-value">Sin dato</span>' : `${htmlEscape(value)}${unit ? ' ' + unit : ''}`;
+}
+
+function deltaText(a, b, digits = 1) {
+  const delta = ComparisonEngine.numericDelta(a, b);
+  if (delta === null) return '<span class="missing-value">—</span>';
+  const rounded = Number(delta.toFixed(digits));
+  return rounded > 0 ? `+${rounded}` : String(rounded);
+}
+
+function compareTable(title, rows, columns) {
+  if (!rows.length) return '';
+  return `<section class="compare-section card"><div class="card-title">${htmlEscape(title)}</div><div class="table-scroll"><table class="compare-table"><thead><tr>${columns.map(column => `<th>${htmlEscape(column)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div></section>`;
+}
+
+function comparisonTableColumns(a, b, firstColumn = 'Parámetro', resultColumn = 'Resultado') {
+  return [firstColumn, ComparisonEngine.comparisonModelLabel(a), ComparisonEngine.comparisonModelLabel(b), resultColumn];
+}
+
+function compareRow(label, a, b, options = {}) {
+  const equal = a !== null && a !== undefined && b !== null && b !== undefined && String(a) === String(b);
+  const result = options.numeric ? deltaText(a, b, options.digits ?? 1) : a == null || b == null ? '— Sin dato' : equal ? '= Igual' : '≠ Diferente';
+  return `<tr data-comparison-row data-equal="${equal}"><th>${htmlEscape(label)}</th><td>${comparisonValue(a, options.unit)}</td><td>${comparisonValue(b, options.unit)}</td><td class="${equal ? 'delta-zero' : 'delta-change'}">${result}</td></tr>`;
+}
+
+function firstSpecification(summary) {
+  const specs = summary.specs || {};
+  const line = Object.keys(specs)[0];
+  return line ? specs[line] : null;
+}
+
+function timeMetrics(item) {
+  if (!item?.tiempos?.length) return null;
+  const max = Math.max(...item.tiempos);
+  return {limit:item.limite, count:item.tiempos.length, average:item.tiempos.reduce((a,b)=>a+b,0)/item.tiempos.length, max, critical:item.tiempos.indexOf(max)+1, exceeded:item.tiempos.filter(value=>value>item.limite).length};
+}
+
+function renderComparability(a, b) {
+  const labels = {palletizacion:'Palletización',specs:'Especificaciones',personal:'Dotación',layout:'Layout',tiempos:'Tiempos'};
+  const states = ComparisonEngine.dataComparability(a, b);
+  const display = {available:['✓','Comparable','badge-green'],partial:['⚠','Parcial','badge-warn'],warning:['⚠','Requiere validación','badge-warn'],missing:['—','Sin datos','badge-gray']};
+  return `<div class="card mb-12"><div class="card-title">Comparabilidad</div><div class="grid-auto">${Object.entries(states).map(([key,value]) => { const d=display[value.state]; return `<div class="metric"><div class="metric-label">${labels[key]}</div><span class="badge ${d[2]}">${d[0]} ${d[1]}</span><div class="metric-sub">A: ${value.a} · B: ${value.b}</div></div>`; }).join('')}</div></div>`;
+}
+
+function renderPersonnelHighlights(rows, totalA, totalB) {
+  if (totalA === null || totalB === null) return '';
+  const comparable = rows.filter(row => row.delta !== null);
+  const increase = comparable.filter(row => row.delta > 0).sort((a,b)=>b.delta-a.delta)[0];
+  const reduction = comparable.filter(row => row.delta < 0).sort((a,b)=>a.delta-b.delta)[0];
+  const unchanged = comparable.filter(row => row.delta === 0).length;
+  const totalDelta = totalB - totalA;
+  const cards = [
+    ['Dotación A',totalA,'personas'],['Dotación B',totalB,'personas'],['Diferencia total',totalDelta > 0 ? `+${totalDelta}` : totalDelta,'B − A'],
+    ['Mayor incremento',increase ? `${increase.name} · +${increase.delta}` : '—','personas'],
+    ['Mayor reducción',reduction ? `${reduction.name} · ${reduction.delta}` : '—','personas'],['Sin cambios',unchanged,'sectores comparables'],
+  ];
+  return `<div class="card mt-12"><div class="card-title">Resumen de dotación</div><div class="grid-auto">${cards.map(([label,value,sub])=>`<div class="metric"><div class="metric-label">${htmlEscape(label)}</div><div class="metric-value compact-value">${htmlEscape(value)}</div><div class="metric-sub">${htmlEscape(sub)}</div></div>`).join('')}</div></div>`;
+}
+
+function renderComparison(a, b) {
+  const standardColumns = comparisonTableColumns(a, b);
+  const deltaColumns = comparisonTableColumns(a, b, 'Sector / proceso', 'Δ B − A');
+  const timeColumns = comparisonTableColumns(a, b, 'Parámetro / puesto', 'Δ B − A');
+  const totalA = ComparisonEngine.totalPersonnel(a.personal), totalB = ComparisonEngine.totalPersonnel(b.personal);
+  const timesA = timeMetrics(a.tiempos), timesB = timeMetrics(b.tiempos);
+  const specA = firstSpecification(a), specB = firstSpecification(b);
+  const executive = [
+    ['Dotación', totalA, totalB, 'personas'], ['Ciclo límite', timesA?.limit, timesB?.limit, 's'],
+    ['Unidades / pallet', a.palletizacion?.unidades_por_pallet, b.palletizacion?.unidades_por_pallet, 'u'],
+    ['Refrigerante', specA?.refrigerante, specB?.refrigerante, ''],
+  ].filter(([,left,right]) => left != null || right != null).map(([label,left,right,unit]) => compareRow(label,left,right,{numeric:typeof left==='number' || typeof right==='number',unit}));
+
+  const palletFields = [
+    ['Unidades / pallet','unidades_por_pallet',true,''],['Capas','capas',true,''],['Cajas / capa','cajas_por_capa',true,''],
+    ['Dimensiones L×A×H','dim_pallet_mm',false,'mm'],['Peso unitario','peso_unitario_kg',true,'kg'],['Peso máximo pallet','peso_max_pallet_kg',true,'kg'],
+    ['Orientación','orientacion',false,''],['Apilabilidad','apilable_hasta',true,''],['Embalaje','embalaje',false,''],
+  ].map(([label,key,numeric,unit]) => { let left=a.palletizacion?.[key], right=b.palletizacion?.[key]; if (Array.isArray(left)) left=left.join('×'); if(Array.isArray(right)) right=right.join('×'); return compareRow(label,left,right,{numeric,unit}); });
+
+  const personnelRows = ComparisonEngine.alignPersonnel(a.personal,b.personal);
+  const personnelTableRows = personnelRows.map(row => `<tr data-comparison-row data-equal="${row.equal}"><th>${htmlEscape(row.name)}</th><td>${comparisonValue(row.a)}</td><td>${comparisonValue(row.b)}</td><td class="${row.delta === 0 ? 'delta-zero' : 'delta-change'}">${row.delta === null ? '—' : deltaText(row.a,row.b,0)}</td></tr>`);
+  if (a.personal || b.personal) personnelTableRows.push(`<tr class="compare-total"><th>TOTAL</th><td>${comparisonValue(totalA)}</td><td>${comparisonValue(totalB)}</td><td>${deltaText(totalA,totalB,0)}</td></tr>`);
+
+  const specSections = [...new Set([...Object.keys(a.specs || {}),...Object.keys(b.specs || {})])].sort().map(line => {
+    const left=a.specs?.[line], right=b.specs?.[line];
+    const fields=[['BTU','btus',true,''],['Consumo','consumo_w',true,'W'],['SEER','eficiencia_seer',true,''],['Refrigerante','refrigerante',false,''],['Ruido UI','ruido_ui_db',true,'dB'],['Ruido UE','ruido_ue_db',true,'dB'],['Dimensiones UI','ui_dim_mm',false,'mm'],['Dimensiones UE','ue_dim_mm',false,'mm']];
+    const rows=fields.map(([label,key,numeric,unit])=>{let x=left?.[key],y=right?.[key];if(Array.isArray(x))x=x.join('×');if(Array.isArray(y))y=y.join('×');return compareRow(label,x,y,{numeric,unit});});
+    return compareTable(`Especificaciones · ${line}`, rows, standardColumns);
+  }).join('');
+
+  const timeRows = [['Ciclo límite',timesA?.limit,timesB?.limit,'s'],['Cantidad de puestos',timesA?.count,timesB?.count,''],['Promedio',timesA?.average,timesB?.average,'s'],['Puesto crítico',timesA?.critical,timesB?.critical,''],['Tiempo máximo',timesA?.max,timesB?.max,'s'],['Puestos sobre ciclo',timesA?.exceeded,timesB?.exceeded,'']].map(([label,left,right,unit])=>compareRow(label,left,right,{numeric:true,unit}));
+  if (a.tiempos?.tiempos && b.tiempos?.tiempos) for(let index=0;index<Math.max(a.tiempos.tiempos.length,b.tiempos.tiempos.length);index++) timeRows.push(compareRow(`P${index+1}`,a.tiempos.tiempos[index],b.tiempos.tiempos[index],{numeric:true,unit:'s'}));
+
+  const layoutRows = [['Existencia',a.layout?'Disponible':null,b.layout?'Disponible':null],['Nombre',a.layout?.nombre,b.layout?.nombre],['Versión',a.layout?.version,b.layout?.version],['Estado',a.layout?.estado,b.layout?.estado],['Fecha',a.layout?.fecha,b.layout?.fecha]].map(([label,left,right])=>compareRow(label,left,right));
+  const warnings = [...a.warnings.map(message=>`Modelo A: ${message}`),...b.warnings.map(message=>`Modelo B: ${message}`)];
+
+  return `<div class="compare-header card"><div>${comparisonIdentity(a,'A')}</div><div class="versus">VS</div><div>${comparisonIdentity(b,'B')}</div></div>
+    ${warnings.map(message=>alert_html('warn',htmlEscape(message))).join('')}${renderComparability(a,b)}
+    ${compareTable('Diferencias principales', executive, standardColumns)}${renderPersonnelHighlights(personnelRows,totalA,totalB)}
+    ${compareTable('Dotación por sector', personnelTableRows, deltaColumns)}
+    ${compareTable('Palletización', palletFields, standardColumns)}${specSections}${compareTable('Tiempos', timeRows, timeColumns)}${compareTable('Layout', layoutRows, standardColumns)}`;
+}
+
+function applyComparisonFilter() {
+  const onlyDifferences = document.getElementById('compare-only-diffs').checked;
+  document.querySelectorAll('#compare-results [data-comparison-row]').forEach(row => row.classList.toggle('hidden', onlyDifferences && row.dataset.equal === 'true'));
+}
+
 /* ── Alert helper ─────────────────────── */
 const ALERT_ICONS = {
   ok:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
@@ -1926,7 +2390,11 @@ function getTiemposForm() {
 
 function renderTiemposMetrics(tiempos, limite) {
   const el = document.getElementById('tiempos-metrics');
-  if (!tiempos.length) { el.innerHTML = ''; return; }
+  if (!tiempos.length) {
+    el.innerHTML = '';
+    document.getElementById('tiempos-table-card').classList.add('hidden');
+    return;
+  }
   const max = Math.max(...tiempos);
   const min = Math.min(...tiempos);
   const promedio = tiempos.reduce((a, b) => a + b, 0) / tiempos.length;
@@ -1938,6 +2406,18 @@ function renderTiemposMetrics(tiempos, limite) {
     <div class="metric"><div class="metric-label">Puesto crítico</div><div class="metric-value">${critico}</div><div class="metric-sub">${max.toFixed(1)} s</div></div>
     <div class="metric"><div class="metric-label">Excedidos</div><div class="metric-value">${excedidos}</div><div class="metric-sub">límite ${limite} s · mín ${min.toFixed(1)} s</div></div>
   `;
+  renderTiemposTable(tiempos, limite);
+}
+
+function renderTiemposTable(tiempos, limite) {
+  const card = document.getElementById('tiempos-table-card');
+  const body = document.getElementById('tiempos-table-body');
+  body.innerHTML = tiempos.map((time, index) => {
+    const percentage = limite > 0 ? (time / limite) * 100 : 0;
+    const state = percentage > 100 ? ['Sobre ciclo','badge-err','> 100%'] : percentage >= 90 ? ['Próximo al límite','badge-warn','90–100%'] : ['Dentro de ciclo','badge-green','< 90%'];
+    return `<tr><td class="fw-600">P${index + 1}</td><td class="mono">${time.toFixed(2)} s</td><td>${percentage.toFixed(1)}%</td><td><span class="badge ${state[1]}" title="${state[2]} del ciclo">${state[0]}</span></td></tr>`;
+  }).join('');
+  card.classList.remove('hidden');
 }
 
 function generarGraficoTiempos(data = null) {
@@ -2002,14 +2482,16 @@ async function loadTiempos() {
   const alertEl = document.getElementById('tiempos-alert');
   if (!cap || !prov || !mod) { alertEl.innerHTML = alert_html('warn', 'Seleccioná capacidad, proveedor y modelo.'); return; }
   try {
-    const d = await api(`/tiempos?capacidad=${cap}&proveedor=${prov}&modelo=${mod}`);
+    const d = await api(`/tiempos?capacidad=${encodeURIComponent(cap)}&proveedor=${encodeURIComponent(prov)}&modelo=${encodeURIComponent(mod)}`);
     document.getElementById('t-titulo').value = d.titulo || 'Distribución de tiempos por puesto';
     document.getElementById('t-limite').value = d.limite || 18;
     document.getElementById('t-tiempos').value = (d.tiempos || []).join(', ');
     generarGraficoTiempos({ cap, prov, mod, titulo: d.titulo, limite: d.limite, tiempos: d.tiempos || [] });
     alertEl.innerHTML = alert_html('ok', 'Tiempos cargados correctamente.');
   } catch(e) {
-    alertEl.innerHTML = alert_html('warn', 'No hay tiempos guardados para este modelo. Podés cargarlos y guardarlos desde esta pestaña.');
+    alertEl.innerHTML = e.status === 404
+      ? alert_html('info', 'No hay tiempos guardados para este modelo.')
+      : alert_html('err', e.message);
     renderTiemposMetrics([], parseFloat(document.getElementById('t-limite').value) || 18);
   }
 }
@@ -2020,11 +2502,7 @@ async function saveTiempos() {
   if (!form.cap || !form.prov || !form.mod) { alertEl.innerHTML = alert_html('warn', 'Seleccioná capacidad, proveedor y modelo.'); return; }
   if (!form.tiempos.length) { alertEl.innerHTML = alert_html('warn', 'Ingresá al menos un tiempo válido.'); return; }
   try {
-    await api(`/tiempos?capacidad=${form.cap}&proveedor=${form.prov}&modelo=${form.mod}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ titulo: form.titulo, limite: form.limite, tiempos: form.tiempos }),
-    });
+    await apiAdmin(`/tiempos?capacidad=${encodeURIComponent(form.cap)}&proveedor=${encodeURIComponent(form.prov)}&modelo=${encodeURIComponent(form.mod)}`, 'PUT', { titulo: form.titulo, limite: form.limite, tiempos: form.tiempos });
     generarGraficoTiempos(form);
     alertEl.innerHTML = alert_html('ok', 'Tiempos guardados correctamente.');
   } catch(e) { alertEl.innerHTML = alert_html('err', e.message); }
@@ -2035,7 +2513,7 @@ async function deleteTiempos() {
   const alertEl = document.getElementById('tiempos-alert');
   if (!cap || !prov || !mod) { alertEl.innerHTML = alert_html('warn', 'Seleccioná capacidad, proveedor y modelo.'); return; }
   try {
-    await api(`/tiempos?capacidad=${cap}&proveedor=${prov}&modelo=${mod}`, { method: 'DELETE' });
+    await apiAdmin(`/tiempos?capacidad=${encodeURIComponent(cap)}&proveedor=${encodeURIComponent(prov)}&modelo=${encodeURIComponent(mod)}`, 'DELETE');
     document.getElementById('t-tiempos').value = '';
     renderTiemposMetrics([], parseFloat(document.getElementById('t-limite').value) || 18);
     if (chartTiempos) { chartTiempos.destroy(); chartTiempos = null; }
@@ -2046,16 +2524,12 @@ async function deleteTiempos() {
 async function reloadTiempos() {
   const alertEl = document.getElementById('tiempos-alert');
   try {
-    const d = await api('/reload-tiempos', { method: 'POST' });
+    const d = await apiAdmin('/reload-tiempos', 'POST');
     alertEl.innerHTML = alert_html('ok', `Tiempos recargados. Registros: ${d.rows}`);
   } catch(e) { alertEl.innerHTML = alert_html('err', e.message); }
 }
 
 /* ── Init ─────────────────────────────── */
-if (getAdminKey()) {
-  document.getElementById('admin-panel').classList.remove('hidden');
-  setAdminStatus('Conectado', 'ok');
-}
 loadCatalogo();
 loadLineas();
 </script>
