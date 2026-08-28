@@ -253,3 +253,37 @@ validada en memoria. Guardar continúa usando el `POST /personal` protegido,
 recarga la fuente y vuelve a consulta; cancelar o navegar con cambios pendientes
 solicita confirmación. Un administrador puede iniciar una dotación vacía, pero
 el sistema no inventa sectores.
+
+## Gestor de Instrucciones de Trabajo
+
+El módulo **Instrucciones de Trabajo** separa el identificador interno
+`IT-000001` del código documental corporativo y persiste el contenido en
+`work_instructions.db`, sin utilizar la base de Memoria de Ingeniería. Las
+lecturas son públicas dentro de la aplicación y todas las escrituras reutilizan
+la autenticación `X-API-Key`.
+
+Cada revisión conserva procedimientos ordenados, materiales, herramientas, EPP
+e imágenes opcionales guardadas bajo `data/work_instructions/`. Publicar una
+revisión es transaccional: la revisión activa anterior pasa a `obsolete` y la
+nueva `draft` pasa a `active`. El editor ofrece acciones rápidas, plantillas de
+frase, duplicación y reordenamiento, y una vista previa HTML.
+
+`work_instruction_exporter.py` implementa un adaptador desacoplado basado en
+Microsoft Excel COM. En Windows se instalan las dependencias opcionales con
+`pip install -r requirements-windows.txt`; Linux continúa usando solamente
+`requirements.txt` y responde HTTP 503 de manera controlada.
+
+El adaptador abre siempre una instancia aislada mediante `DispatchEx`, trabaja
+sobre una copia temporal de `templates/it/BSIP_IT_template.xlsx`, elimina por
+nombre los objetos específicos de los procedimientos del ejemplo y conserva
+los recursos corporativos. Para diagnosticar y probar la integración en una PC
+con Microsoft Excel instalado:
+
+```bash
+python scripts/check_excel_com.py
+python scripts/test_it_excel_export.py
+```
+
+El segundo comando genera un archivo bajo `exports_test/` sin acceder a
+`work_instructions.db`. Superar estos scripts no sustituye la inspección visual
+manual del libro generado en Microsoft Excel.
