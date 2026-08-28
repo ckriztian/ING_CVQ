@@ -52,6 +52,20 @@
     return { filename, size: blob.size };
   }
 
+  function getBrowserDependencies(browserWindow) {
+    return {
+      // Los wrappers conservan el receptor nativo; nunca exponen métodos sueltos de Window/URL.
+      fetchImpl: (...args) => browserWindow.fetch(...args),
+      environment: {
+        URL: {
+          createObjectURL: blob => browserWindow.URL.createObjectURL(blob),
+          revokeObjectURL: url => browserWindow.URL.revokeObjectURL(url),
+        },
+        document: browserWindow.document,
+      },
+    };
+  }
+
   async function exportXlsxFromUi(options) {
     const originalText = options.button.textContent;
     options.button.disabled = true;
@@ -71,5 +85,5 @@
     }
   }
 
-  return { filenameFromContentDisposition, downloadXlsxResponse, exportXlsxFromUi };
+  return { filenameFromContentDisposition, downloadXlsxResponse, exportXlsxFromUi, getBrowserDependencies };
 });

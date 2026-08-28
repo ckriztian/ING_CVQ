@@ -2634,12 +2634,13 @@ function renderWorkPreview(){const p=workPayload(),model=MASTER_MODELS.find(x=>x
 async function exportWorkInstruction(){
   if(!WI_CURRENT)return;
   const instructionId=WI_CURRENT.instruction_id;
+  const browserDependencies=WorkInstructionDownload.getBrowserDependencies(window);
   await WorkInstructionDownload.exportXlsxFromUi({
-    fetchImpl:fetch,
+    fetchImpl:browserDependencies.fetchImpl,
     url:base()+`/instrucciones/${encodeURIComponent(instructionId)}/exportar`,
     fallbackFilename:`${instructionId}.xlsx`,
     button:document.getElementById('wi-export-btn'),
-    environment:{URL,document},
+    environment:browserDependencies.environment,
     renderMessage:(kind,message)=>{document.getElementById('wi-message').innerHTML=alert_html(kind,htmlEscape(message))},
   });
 }

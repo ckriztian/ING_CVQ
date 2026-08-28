@@ -55,3 +55,15 @@ const response={ok:true,status:200,headers:{get(){return null}},async blob(){ret
 const environment={URL:{createObjectURL(){return'blob:x'},revokeObjectURL(){revoked++}},document:{createElement(){return link},body:{appendChild(){}}}};
 (async()=>{const result=await download.exportXlsxFromUi({fetchImpl:async()=>response,url:'/exportar',fallbackFilename:'IT-000002.xlsx',button,environment,renderMessage:()=>{}});assert.equal(result.filename,'IT-000002.xlsx');assert.equal(link.download,'IT-000002.xlsx');assert.equal(clicked,1);assert.equal(revoked,1);assert.equal(button.disabled,false);assert.equal(button.textContent,'Exportar Excel')})().catch(error=>{console.error(error);process.exit(1)});
 """)
+
+
+def test_browser_dependencies_preserve_native_method_receivers():
+    run_node(r"""
+const assert=require('assert');let fetchThis,urlCreateThis,urlRevokeThis;
+const fakeWindow={
+  fetch(){fetchThis=this;return Promise.resolve('response')},
+  URL:{createObjectURL(){urlCreateThis=this;return'blob:test'},revokeObjectURL(){urlRevokeThis=this}},
+  document:{marker:'document'}
+};
+(async()=>{const deps=download.getBrowserDependencies(fakeWindow);assert.equal(await deps.fetchImpl('/export'),'response');assert.equal(fetchThis,fakeWindow);assert.equal(deps.environment.URL.createObjectURL({}),'blob:test');deps.environment.URL.revokeObjectURL('blob:test');assert.equal(urlCreateThis,fakeWindow.URL);assert.equal(urlRevokeThis,fakeWindow.URL);assert.equal(deps.environment.document,fakeWindow.document)})().catch(error=>{console.error(error);process.exit(1)});
+""")
