@@ -8,6 +8,7 @@ import re
 import shutil
 import tempfile
 import unicodedata
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional, Protocol
 
@@ -76,37 +77,43 @@ def _sheet_name(worksheet: Any) -> str:
         return "<desconocida>"
 
 
-def _range_target(worksheet: Any, address: str) -> tuple[Any, Any, bool]:
-    cell_range = worksheet.Range(address)
-    merged = bool(cell_range.MergeCells)
-    target = cell_range.MergeArea.Cells(1, 1) if merged else cell_range
-    return cell_range, target, merged
+@dataclass
+class ResolvedCellTarget:
+    requested: Any
+    anchor: Any
+    merge_area: Any
+    target: Any
+    merged: bool
+
+
+def _resolve_cell_target(worksheet: Any, address: str) -> ResolvedCellTarget:
+    """Resuelve siempre un merge desde la primera celda, nunca desde un rango múltiple."""
+    requested = worksheet.Range(address)
+    anchor = requested.Cells(1, 1)
+    merged = bool(anchor.MergeCells)
+    merge_area = anchor.MergeArea if merged else None
+    target = merge_area.Cells(1, 1) if merged else anchor
+    return ResolvedCellTarget(requested, anchor, merge_area, target, merged)
 
 
 def _set_cell_value(worksheet: Any, address: str, value: Any, field: str) -> None:
     sheet = _sheet_name(worksheet)
     try:
-        _, target, merged = _range_target(worksheet, address)
-        logger.debug("Excel COM write field=%s sheet=%s range=%s merged=%s", field, sheet, address, merged)
-        target.Value = value
+        resolved = _resolve_cell_target(worksheet, address)
+        logger.debug("Excel COM write field=%s sheet=%s range=%s merged=%s", field, sheet, address, resolved.merged)
+        resolved.target.Value = value
     except Exception as exc:
         if isinstance(exc, CellOperationError):
             raise
         raise CellOperationError("write", field, sheet, address, exc) from exc
 
 
-def _clear_cell(worksheet: Any, address: str, field: str, cleared_merge_areas: Optional[set[str]] = None) -> None:
+def _clear_cell(worksheet: Any, address: str, field: str) -> None:
     sheet = _sheet_name(worksheet)
     try:
-        cell_range, _, merged = _range_target(worksheet, address)
-        clear_target = cell_range.MergeArea if merged else cell_range
-        merge_key = str(clear_target.Address) if merged else ""
-        logger.debug("Excel COM clear field=%s sheet=%s range=%s merged=%s", field, sheet, address, merged)
-        if merged and cleared_merge_areas is not None and merge_key in cleared_merge_areas:
-            return
-        clear_target.ClearContents()
-        if merged and cleared_merge_areas is not None:
-            cleared_merge_areas.add(merge_key)
+        resolved = _resolve_cell_target(worksheet, address)
+        logger.debug("Excel COM clear field=%s sheet=%s range=%s merged=%s", field, sheet, address, resolved.merged)
+        resolved.target.Value = None
     except Exception as exc:
         if isinstance(exc, CellOperationError):
             raise
@@ -278,7 +285,6 @@ class ExcelComWorkInstructionExporter:
             shape = worksheet.Shapes.Item(index)
             if shape.Name in EXAMPLE_PROCEDURE_OBJECTS:
                 shape.Delete()
-        cleared_merge_areas: set[str] = set()
         cleanup = {
             "procedure_1_instruction": "C30:Q30", "procedure_1_observation": "C31:Q31",
             "procedure_1_warning": "C32:Q32", "procedure_1_extra": "C33:Q33",
@@ -287,7 +293,7 @@ class ExcelComWorkInstructionExporter:
             "general_warning": "C34:AF35",
         }
         for field, address in cleanup.items():
-            _clear_cell(worksheet, address, field, cleared_merge_areas)
+            _clear_cell(worksheet, address, field)
 
     @staticmethod
     def _write_header(worksheet: Any, instruction: Dict[str, Any], revision: Dict[str, Any], page: int, total: int) -> None:

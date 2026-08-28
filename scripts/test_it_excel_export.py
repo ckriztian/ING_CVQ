@@ -11,6 +11,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from work_instruction_exporter import CellOperationError, ExcelComWorkInstructionExporter  # noqa: E402
+from work_instruction_exporter import PROCEDURE_SHEET, _resolve_cell_target  # noqa: E402
 
 
 def fixture() -> dict:
@@ -34,6 +35,32 @@ def fixture() -> dict:
     }
 
 
+def print_merge_diagnostic(template: Path) -> None:
+    """Inspecciona C30:Q30 en modo solo lectura antes de ejecutar la limpieza."""
+    import pythoncom
+    import win32com.client
+    excel = workbook = None
+    try:
+        pythoncom.CoInitialize()
+        excel = win32com.client.DispatchEx("Excel.Application")
+        excel.Visible = False
+        excel.DisplayAlerts = False
+        workbook = excel.Workbooks.Open(str(template.resolve()), ReadOnly=True, UpdateLinks=0)
+        resolved = _resolve_cell_target(workbook.Worksheets(PROCEDURE_SHEET), "C30:Q30")
+        print("DIAGNÓSTICO MERGE C30:Q30")
+        print(f"Requested: {resolved.requested.Address}")
+        print(f"Anchor: {resolved.anchor.Address}")
+        print(f"MergeCells: {resolved.merged}")
+        print(f"MergeArea: {resolved.merge_area.Address if resolved.merge_area is not None else 'N/A'}")
+        print(f"Target: {resolved.target.Address}")
+    finally:
+        if workbook is not None:
+            workbook.Close(SaveChanges=False)
+        if excel is not None:
+            excel.Quit()
+        pythoncom.CoUninitialize()
+
+
 def main() -> int:
     if platform.system() != "Windows":
         print("ERROR: este script requiere Windows.")
@@ -44,6 +71,7 @@ def main() -> int:
     if not available:
         print(f"ERROR: {detail}")
         return 1
+    print_merge_diagnostic(template)
     output_dir = ROOT / "exports_test"
     try:
         output = exporter.export(fixture(), "R_TEST", output_dir)

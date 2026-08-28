@@ -5,7 +5,7 @@ import pytest
 
 import work_instruction_exporter as module
 from work_instruction_exporter import CellOperationError, ExcelComWorkInstructionExporter, ExportError
-from work_instruction_exporter import _clear_cell, _set_cell_value, safe_filename
+from work_instruction_exporter import _clear_cell, _resolve_cell_target, _set_cell_value, safe_filename
 
 
 def instruction(step_count=3):
@@ -30,10 +30,13 @@ class FakeRange:
     Left, Top, Width, Height = 0, 0, 500, 300
     def __init__(self, address="", merged=False, merge_area=None):
         self.Value, self.Address, self.MergeCells = None, address, merged
-        self.clear_count = 0
+        self.clear_count = self.clear_calls = self.delete_calls = self.unmerge_calls = 0
         self.MergeArea = merge_area or self
         self.Cells = FakeCells(self)
-    def ClearContents(self): self.Value = None; self.clear_count += 1
+    def ClearContents(self): self.clear_count += 1; raise AssertionError("ClearContents no debe utilizarse")
+    def Clear(self): self.clear_calls += 1; raise AssertionError("Clear no debe utilizarse")
+    def Delete(self): self.delete_calls += 1; raise AssertionError("Delete no debe utilizarse")
+    def UnMerge(self): self.unmerge_calls += 1; raise AssertionError("UnMerge no debe utilizarse")
 
 
 class FakeMergeArea(FakeRange):
@@ -142,27 +145,45 @@ def test_safe_write_supports_normal_and_merged_cells_without_unmerge():
     worksheet = FakeSheet(None, "IT")
     normal = FakeRange("A1")
     area = FakeMergeArea("B2:D2")
-    merged = FakeRange("C2", merged=True, merge_area=area)
-    worksheet.cells.update({"A1": normal, "B2:D2": merged})
+    anchor = FakeRange("B2", merged=True, merge_area=area)
+    requested = FakeRange("B2:D2")
+    requested.Cells = FakeCells(anchor)
+    worksheet.cells.update({"A1": normal, "B2:D2": requested})
     _set_cell_value(worksheet, "A1", "normal", "normal_field")
     _set_cell_value(worksheet, "B2:D2", "merged", "merged_field")
     assert normal.Value == "normal"
     assert area.anchor.Value == "merged"
-    assert not hasattr(area, "UnMerge") and not hasattr(merged, "UnMerge")
+    assert area.unmerge_calls == requested.unmerge_calls == anchor.unmerge_calls == 0
 
 
-def test_safe_clear_uses_merge_area_once_and_normal_range_once():
+def test_safe_clear_sets_anchor_value_without_destructive_com_methods():
     worksheet = FakeSheet(None, "IT")
     normal = FakeRange("A1")
     area = FakeMergeArea("B2:D2")
-    merged_a = FakeRange("B2", merged=True, merge_area=area)
-    merged_b = FakeRange("C2", merged=True, merge_area=area)
-    worksheet.cells.update({"A1": normal, "B2": merged_a, "C2": merged_b})
-    cleared = set()
-    _clear_cell(worksheet, "A1", "normal", cleared)
-    _clear_cell(worksheet, "B2", "merged_a", cleared)
-    _clear_cell(worksheet, "C2", "merged_b", cleared)
-    assert normal.clear_count == 1 and area.clear_count == 1
+    anchor = FakeRange("B2", merged=True, merge_area=area)
+    requested = FakeRange("B2:D2")
+    requested.Cells = FakeCells(anchor)
+    normal.Value = area.anchor.Value = "old"
+    worksheet.cells.update({"A1": normal, "B2:D2": requested})
+    _clear_cell(worksheet, "A1", "normal")
+    _clear_cell(worksheet, "B2:D2", "merged")
+    assert normal.Value is None and area.anchor.Value is None
+    for item in (normal, requested, anchor, area, area.anchor):
+        assert item.clear_count == item.clear_calls == item.delete_calls == item.unmerge_calls == 0
+
+
+def test_resolve_multicell_range_uses_single_anchor_before_merge_area():
+    worksheet = FakeSheet(None, "IT Página 1")
+    merge_area = FakeMergeArea("$C$30:$Q$30")
+    anchor = FakeRange("$C$30", merged=True, merge_area=merge_area)
+    requested = FakeRange("$C$30:$Q$30")
+    requested.Cells = FakeCells(anchor)
+    worksheet.cells["C30:Q30"] = requested
+    resolved = _resolve_cell_target(worksheet, "C30:Q30")
+    assert resolved.requested is requested
+    assert resolved.anchor is anchor and resolved.anchor.Address == "$C$30"
+    assert resolved.merged is True and resolved.merge_area is merge_area
+    assert resolved.target is merge_area.anchor and resolved.target.Address == "$C$30"
 
 
 def test_cell_error_contains_operation_context():
