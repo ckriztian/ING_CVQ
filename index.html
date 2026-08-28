@@ -577,7 +577,7 @@
           <div class="card mt-12" id="wi-tools"><div class="flex justify-between"><div class="card-title">Herramientas</div><button class="btn" onclick="addWorkTool()">+ Agregar herramienta</button></div><div id="wi-tool-list"></div></div>
           <div class="card mt-12" id="wi-epp"><div class="card-title">Seguridad / EPP</div><div id="wi-epp-list" class="wi-epp-grid"></div></div>
           <div class="card mt-12" id="wi-revision"><div class="card-title">Revisión</div><div id="wi-revision-history"></div><div class="flex gap-8 mt-12"><input id="wi-new-revision" placeholder="Ej: R1"><button class="btn" id="wi-new-revision-btn" onclick="createWorkRevision()">Crear nueva revisión</button><button class="btn btn-ok" id="wi-activate-revision-btn" onclick="activateWorkRevision()">Activar revisión actual</button></div></div>
-          <div class="card mt-12" id="wi-preview"><div class="flex justify-between"><div class="card-title">Vista previa</div><button class="btn" onclick="renderWorkPreview()">Actualizar vista previa</button></div><div id="wi-preview-content"></div><button class="btn mt-12" onclick="exportWorkInstruction()">Exportar Excel</button></div>
+          <div class="card mt-12" id="wi-preview"><div class="flex justify-between"><div class="card-title">Vista previa</div><button class="btn" onclick="renderWorkPreview()">Actualizar vista previa</button></div><div id="wi-preview-content"></div><button class="btn mt-12" id="wi-export-btn" onclick="exportWorkInstruction()">Exportar Excel</button></div>
         </section>
       </div>
     </div>
@@ -609,6 +609,7 @@
 <!-- Chart.js para gráficos de tiempos -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="comparison.js"></script>
+<script src="work_instruction_download.js"></script>
 
 <!-- ══════════ SCRIPTS ══════════ -->
 <script>
@@ -2630,7 +2631,18 @@ function renderRevisionHistory(revisions){document.getElementById('wi-revision-h
 async function createWorkRevision(){if(!WI_CURRENT)return;try{const code=document.getElementById('wi-new-revision').value;WI_CURRENT=await apiAdmin(`/instrucciones/${WI_CURRENT.instruction_id}/revisiones`,'POST',{revision_code:code});WI_CURRENT.current_revision=WI_CURRENT.revisions.find(x=>x.revision_code===code);loadInstructionIntoEditor(WI_CURRENT);setInstructionMode(true)}catch(e){document.getElementById('wi-message').innerHTML=alert_html('err',htmlEscape(e.message))}}
 async function activateWorkRevision(){if(!WI_CURRENT)return;try{WI_CURRENT=await apiAdmin(`/instrucciones/${WI_CURRENT.instruction_id}/revisiones/${encodeURIComponent(document.getElementById('wi-revision-code').value)}/activar`,'POST');loadInstructionIntoEditor(WI_CURRENT);setInstructionMode(false)}catch(e){document.getElementById('wi-message').innerHTML=alert_html('err',htmlEscape(e.message))}}
 function renderWorkPreview(){const p=workPayload(),model=MASTER_MODELS.find(x=>x.model_id===document.getElementById('wi-model').value);document.getElementById('wi-preview-content').innerHTML=`<article class="wi-preview"><h2>${htmlEscape(p.document_code||'Nueva IT')} · ${htmlEscape(p.title||'Sin título')}</h2><p><b>Modelo:</b> ${htmlEscape(model?modelLabel(model):'—')} · <b>Proceso:</b> ${htmlEscape(p.process||'—')} · <b>Revisión:</b> ${htmlEscape(p.revision_code)}</p><h3>Procedimientos</h3>${p.steps.map((x,i)=>`<section><b>${i+1}.</b> ${htmlEscape(x.instruction)}${x.observation?`<p>Observación: ${htmlEscape(x.observation)}</p>`:''}${x.warning?`<p class="text-danger">Advertencia: ${htmlEscape(x.warning)}</p>`:''}</section>`).join('')}<h3>Materiales</h3><ul>${p.materials.map(x=>`<li>${htmlEscape(x.description)} — ${htmlEscape(x.quantity)}</li>`).join('')}</ul><h3>Herramientas</h3><ul>${p.tools.map(x=>`<li>${htmlEscape(x.description)} — ${htmlEscape(x.quantity)}</li>`).join('')}</ul><h3>EPP</h3><p>${p.epp.filter(x=>x.selected).map(x=>htmlEscape(x.name)).join(', ')||'Sin selección'}</p></article>`}
-async function exportWorkInstruction(){if(!WI_CURRENT)return;try{await api(`/instrucciones/${WI_CURRENT.instruction_id}/exportar`)}catch(e){document.getElementById('wi-message').innerHTML=alert_html(e.status===503?'info':'err',htmlEscape(e.message))}}
+async function exportWorkInstruction(){
+  if(!WI_CURRENT)return;
+  const instructionId=WI_CURRENT.instruction_id;
+  await WorkInstructionDownload.exportXlsxFromUi({
+    fetchImpl:fetch,
+    url:base()+`/instrucciones/${encodeURIComponent(instructionId)}/exportar`,
+    fallbackFilename:`${instructionId}.xlsx`,
+    button:document.getElementById('wi-export-btn'),
+    environment:{URL,document},
+    renderMessage:(kind,message)=>{document.getElementById('wi-message').innerHTML=alert_html(kind,htmlEscape(message))},
+  });
+}
 document.getElementById('wi-action-chips').innerHTML=WI_ACTIONS.map(x=>`<button class="chip" onclick="insertQuickAction('${x}')">${x}</button>`).join('');
 
 /* ── Init ─────────────────────────────── */
