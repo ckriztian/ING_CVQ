@@ -4,8 +4,11 @@ import io
 import json
 import logging
 import os
+import re
 import shutil
+import sqlite3
 import tempfile
+import threading
 import unicodedata
 from datetime import date
 from pathlib import Path
@@ -14,8 +17,9 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel, Field, HttpUrl, field_validator
+from starlette.background import BackgroundTask
 
 from history_store import CHANGE_STATUSES, CHANGE_TYPES
 from history_store import create_change as db_create_change
@@ -23,6 +27,17 @@ from history_store import get_change as db_get_change
 from history_store import initialize as initialize_history
 from history_store import list_changes as db_list_changes
 from history_store import update_change as db_update_change
+from work_instruction_exporter import BackendUnavailableError, ExportError
+from work_instruction_exporter import exporter as work_instruction_exporter
+from work_instruction_store import EPP_OPTIONS, REVISION_STATUSES
+from work_instruction_store import activate_revision as db_activate_revision
+from work_instruction_store import create_instruction as db_create_instruction
+from work_instruction_store import get_instruction as db_get_instruction
+from work_instruction_store import list_instructions as db_list_instructions
+from work_instruction_store import new_revision as db_new_revision
+from work_instruction_store import save_step_image as db_save_step_image
+from work_instruction_store import update_instruction as db_update_instruction
+from work_instruction_store import update_revision as db_update_revision
 
 logger = logging.getLogger("bgh_sistema_experto")
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
@@ -36,6 +51,8 @@ DATA_PATHS = {
     "tiempos": BASE_DIR / "tiempos_linea.json",
     "modelos": BASE_DIR / "modelos.json",
     "history": BASE_DIR / "engineering_history.db",
+    "work_instructions": BASE_DIR / "work_instructions.db",
+    "work_instruction_files": BASE_DIR / "data" / "work_instructions",
 }
 
 # Alias conservados porque las pruebas y las operaciones administrativas aíslan
@@ -48,6 +65,8 @@ LAYOUTS_PATH = DATA_PATHS["layouts"]
 TIEMPOS_PATH = DATA_PATHS["tiempos"]
 MODELOS_PATH = DATA_PATHS["modelos"]
 HISTORY_DB_PATH = DATA_PATHS["history"]
+WORK_INSTRUCTIONS_DB_PATH = DATA_PATHS["work_instructions"]
+WORK_INSTRUCTION_FILES_PATH = DATA_PATHS["work_instruction_files"]
 
 PALLET_COLUMNS = [
     "capacidad", "proveedor", "modelo", "unidades_por_pallet", "capas",
@@ -303,6 +322,7 @@ MODEL_ID_BY_KEY = {
     (norm(item["capacidad"]), norm(item["proveedor"]), norm(item["modelo"])): item["model_id"]
     for item in MODELOS
 }
+MODEL_CATALOG_LOCK = threading.Lock()
 
 
 def refresh_model_indexes(models: Optional[List[Dict[str, Any]]] = None) -> None:
@@ -313,6 +333,65 @@ def refresh_model_indexes(models: Optional[List[Dict[str, Any]]] = None) -> None
         (norm(item["capacidad"]), norm(item["proveedor"]), norm(item["modelo"])): item["model_id"]
         for item in MODELOS
     }
+
+
+def next_model_id(models: List[Dict[str, Any]]) -> str:
+    values = []
+    for item in models:
+        match = re.fullmatch(r"mdl_(\d+)", item["model_id"])
+        if not match:
+            raise RuntimeError(f"model_id inválido en catálogo: {item['model_id']}")
+        values.append(int(match.group(1)))
+    return f"mdl_{max(values, default=0) + 1:06d}"
+
+
+def create_master_model(values: Dict[str, Any]) -> Dict[str, Any]:
+    """Alta master-first: no crea datos industriales de palletización."""
+    key = tuple(norm(values[field]) for field in ("capacidad", "proveedor", "modelo"))
+    with MODEL_CATALOG_LOCK:
+        current = load_models(MODELOS_PATH)
+        existing_keys = {
+            tuple(norm(item[field]) for field in ("capacidad", "proveedor", "modelo"))
+            for item in current
+        }
+        if key in existing_keys:
+            raise ValueError("El modelo ya existe.")
+        record = {
+            "model_id": next_model_id(current),
+            "capacidad": key[0],
+            "proveedor": key[1],
+            "modelo": key[2],
+            "sku_bgh": values.get("sku_bgh") or None,
+            "pnb": values.get("pnb") or None,
+        }
+        candidate = [*current, record]
+        # save_models valida y reemplaza atómicamente. Los índices solo cambian
+        # después de confirmar el archivo, así un fallo deja disco y memoria iguales.
+        save_models(MODELOS_PATH, candidate)
+        refresh_model_indexes(candidate)
+        return record
+
+
+def update_master_model_metadata(model_id: str, values: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    with MODEL_CATALOG_LOCK:
+        current = load_models(MODELOS_PATH)
+        index = next((position for position, item in enumerate(current) if item["model_id"] == model_id), None)
+        if index is None:
+            return None
+        record = dict(current[index])
+        if "sku_bgh" in values:
+            pallet = KB.get(norm(record["capacidad"]), {}).get(norm(record["proveedor"]), {}).get(norm(record["modelo"]))
+            requested_sku = values["sku_bgh"] or None
+            if pallet and requested_sku != (pallet.get("sku") or None):
+                raise ValueError("El SKU de un modelo con palletización debe editarse desde la pestaña Palletización.")
+            record["sku_bgh"] = requested_sku
+        if "pnb" in values:
+            record["pnb"] = values["pnb"] or None
+        candidate = [*current]
+        candidate[index] = record
+        save_models(MODELOS_PATH, candidate)
+        refresh_model_indexes(candidate)
+        return record
 
 
 def synchronize_catalog_skus(candidate_kb: Dict[str, Any], models: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -463,6 +542,41 @@ class MasterModel(BaseModel):
     pnb: Optional[str] = None
 
 
+class MasterModelCreate(BaseModel):
+    capacidad: str = Field(min_length=1, max_length=80)
+    proveedor: str = Field(min_length=1, max_length=80)
+    modelo: str = Field(min_length=1, max_length=120)
+    sku_bgh: Optional[str] = Field(default=None, max_length=160)
+    pnb: Optional[str] = Field(default=None, max_length=120)
+
+    @field_validator("capacidad", "proveedor", "modelo")
+    @classmethod
+    def required_identity(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("La identidad del modelo es obligatoria")
+        return value
+
+    @field_validator("sku_bgh", "pnb")
+    @classmethod
+    def optional_metadata(cls, value: Optional[str]) -> Optional[str]:
+        return value.strip() or None if value is not None else None
+
+    model_config = {"extra": "forbid"}
+
+
+class MasterModelMetadataUpdate(BaseModel):
+    sku_bgh: Optional[str] = Field(default=None, max_length=160)
+    pnb: Optional[str] = Field(default=None, max_length=120)
+
+    @field_validator("sku_bgh", "pnb")
+    @classmethod
+    def optional_metadata(cls, value: Optional[str]) -> Optional[str]:
+        return value.strip() or None if value is not None else None
+
+    model_config = {"extra": "forbid"}
+
+
 class EngineeringChangeCreate(BaseModel):
     change_type: str
     title: str = Field(min_length=1, max_length=180)
@@ -555,6 +669,91 @@ class EngineeringChangeUpdate(BaseModel):
     model_config = {"extra": "forbid"}
 
 
+class WorkStep(BaseModel):
+    instruction: str = Field(default="", max_length=10_000)
+    observation: Optional[str] = Field(default=None, max_length=4000)
+    warning: Optional[str] = Field(default=None, max_length=4000)
+
+
+class WorkMaterial(BaseModel):
+    reference: Optional[str] = Field(default=None, max_length=120)
+    description: str = Field(min_length=1, max_length=500)
+    code: Optional[str] = Field(default=None, max_length=120)
+    quantity: str = Field(min_length=1, max_length=80)
+    notes: Optional[str] = Field(default=None, max_length=1000)
+
+
+class WorkTool(BaseModel):
+    description: str = Field(min_length=1, max_length=500)
+    specification: Optional[str] = Field(default=None, max_length=1000)
+    quantity: str = Field(min_length=1, max_length=80)
+
+
+class WorkEpp(BaseModel):
+    name: str
+    selected: bool = False
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        if value not in EPP_OPTIONS:
+            raise ValueError("EPP no reconocido")
+        return value
+
+
+class WorkInstructionCreate(BaseModel):
+    document_code: str = Field(min_length=1, max_length=120)
+    revision_code: str = Field(default="R0", min_length=1, max_length=30)
+    status: str = "draft"
+    area: str = Field(min_length=1, max_length=120)
+    process: str = Field(min_length=1, max_length=200)
+    title: str = Field(min_length=1, max_length=300)
+    prepared_by: str = Field(min_length=1, max_length=120)
+    reviewed_by: str = Field(min_length=1, max_length=120)
+    approved_by: Optional[str] = Field(default=None, max_length=120)
+    document_date: date
+    distribution: Optional[str] = Field(default=None, max_length=1000)
+    steps: List[WorkStep] = Field(default_factory=list, max_length=500)
+    materials: List[WorkMaterial] = Field(default_factory=list, max_length=500)
+    tools: List[WorkTool] = Field(default_factory=list, max_length=500)
+    epp: List[WorkEpp] = Field(default_factory=list, max_length=len(EPP_OPTIONS))
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str) -> str:
+        if value not in REVISION_STATUSES:
+            raise ValueError("Estado de revisión inválido")
+        return value
+
+
+class WorkInstructionUpdate(BaseModel):
+    document_code: Optional[str] = Field(default=None, min_length=1, max_length=120)
+
+
+class WorkRevisionUpdate(BaseModel):
+    area: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    process: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    title: Optional[str] = Field(default=None, min_length=1, max_length=300)
+    prepared_by: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    reviewed_by: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    approved_by: Optional[str] = Field(default=None, max_length=120)
+    document_date: Optional[date] = None
+    distribution: Optional[str] = Field(default=None, max_length=1000)
+    steps: Optional[List[WorkStep]] = Field(default=None, max_length=500)
+    materials: Optional[List[WorkMaterial]] = Field(default=None, max_length=500)
+    tools: Optional[List[WorkTool]] = Field(default=None, max_length=500)
+    epp: Optional[List[WorkEpp]] = Field(default=None, max_length=len(EPP_OPTIONS))
+
+
+class NewWorkRevision(BaseModel):
+    revision_code: str = Field(min_length=1, max_length=30)
+
+
+class WorkImageUpload(BaseModel):
+    mime_type: str
+    data_base64: str = Field(min_length=1, max_length=14_000_000)
+
+
 def require_admin(x_api_key: Optional[str] = Header(default=None, alias="X-API-Key")) -> bool:
     configured_key = os.getenv("ADMIN_API_KEY")
     if not configured_key:
@@ -566,7 +765,7 @@ def require_admin(x_api_key: Optional[str] = Header(default=None, alias="X-API-K
 
 
 def require_catalog_model(capacidad: str, proveedor: str, modelo: str) -> None:
-    if not KB.get(norm(capacidad), {}).get(norm(proveedor), {}).get(norm(modelo)):
+    if not resolve_model_id(capacidad, proveedor, modelo):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Modelo no encontrado en el catálogo")
 
 
@@ -643,8 +842,8 @@ def integrity_report() -> Dict[str, Any]:
         "model_count": len(MODELOS),
         "products_without_master_identity": sorted(key_label(key) for key in pallet_keys - master_keys),
         "master_models_without_pallet": sorted(key_label(key) for key in master_keys - pallet_keys),
-        "specs_without_product": sorted(key_label(key) for key in spec_keys - pallet_keys),
-        "products_without_specs": sorted(key_label(key) for key in pallet_keys - spec_keys),
+        "specs_without_product": sorted(key_label(key) for key in spec_keys - master_keys),
+        "products_without_specs": sorted(key_label(key) for key in master_keys - spec_keys),
         "products_without_personal": sorted(key_label(key) for key in master_keys if model_key(*key) not in json_keys["personal"]),
         "products_without_layout": sorted(key_label(key) for key in master_keys if model_key(*key) not in json_keys["layout"]),
         "products_without_tiempos": sorted(key_label(key) for key in master_keys if model_key(*key) not in json_keys["tiempos"]),
@@ -663,7 +862,10 @@ def health():
 
 @app.get("/catalogo", response_model=List[CatalogoItem])
 def catalogo():
-    return [{"capacidad": cap, "proveedor": prov, "modelo": mod} for cap, provs in KB.items() for prov, mods in provs.items() for mod in mods]
+    return [
+        {"capacidad": item["capacidad"], "proveedor": item["proveedor"], "modelo": item["modelo"]}
+        for item in MODELOS
+    ]
 
 
 @app.get("/lineas", response_model=List[str])
@@ -737,6 +939,146 @@ def update_engineering_change(change_id: str, body: EngineeringChangeUpdate):
     if not change:
         raise HTTPException(404, "Cambio de Ingeniería no encontrado")
     return change
+
+
+@app.get("/instrucciones/configuracion")
+def work_instruction_configuration():
+    return {"revision_statuses": REVISION_STATUSES, "epp": EPP_OPTIONS}
+
+
+@app.get("/instrucciones")
+def get_work_instructions():
+    return db_list_instructions(WORK_INSTRUCTIONS_DB_PATH)
+
+
+@app.get("/modelos/{model_id}/instrucciones")
+def get_model_work_instructions(model_id: str):
+    resolve_model(model_id)
+    return db_list_instructions(WORK_INSTRUCTIONS_DB_PATH, model_id)
+
+
+@app.post("/modelos/{model_id}/instrucciones", dependencies=[Depends(require_admin)], status_code=201)
+def create_work_instruction(model_id: str, body: WorkInstructionCreate):
+    resolve_model(model_id)
+    try:
+        return db_create_instruction(WORK_INSTRUCTIONS_DB_PATH, model_id, body.model_dump(mode="json"))
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@app.get("/instrucciones/{instruction_id}")
+def get_work_instruction(instruction_id: str):
+    item = db_get_instruction(WORK_INSTRUCTIONS_DB_PATH, instruction_id)
+    if not item:
+        raise HTTPException(404, "Instrucción de Trabajo no encontrada")
+    return item
+
+
+@app.patch("/instrucciones/{instruction_id}", dependencies=[Depends(require_admin)])
+def update_work_instruction(instruction_id: str, body: WorkInstructionUpdate):
+    item = db_update_instruction(WORK_INSTRUCTIONS_DB_PATH, instruction_id, body.model_dump(exclude_unset=True))
+    if not item:
+        raise HTTPException(404, "Instrucción de Trabajo no encontrada")
+    return item
+
+
+@app.get("/instrucciones/{instruction_id}/revisiones")
+def get_work_instruction_revisions(instruction_id: str):
+    return get_work_instruction(instruction_id)["revisions"]
+
+
+@app.post("/instrucciones/{instruction_id}/revisiones", dependencies=[Depends(require_admin)], status_code=201)
+def create_work_instruction_revision(instruction_id: str, body: NewWorkRevision):
+    try:
+        item = db_new_revision(WORK_INSTRUCTIONS_DB_PATH, instruction_id, body.revision_code)
+    except sqlite3.IntegrityError as exc:
+        raise HTTPException(409, "La revisión ya existe") from exc
+    if not item:
+        raise HTTPException(404, "Instrucción de Trabajo no encontrada")
+    return item
+
+
+@app.patch("/instrucciones/{instruction_id}/revisiones/{revision_code}", dependencies=[Depends(require_admin)])
+def update_work_instruction_revision(instruction_id: str, revision_code: str, body: WorkRevisionUpdate):
+    values = body.model_dump(exclude_unset=True, mode="json")
+    try:
+        item = db_update_revision(WORK_INSTRUCTIONS_DB_PATH, instruction_id, revision_code, values)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    if not item:
+        raise HTTPException(404, "Revisión no encontrada")
+    return item
+
+
+@app.post("/instrucciones/{instruction_id}/revisiones/{revision_code}/activar", dependencies=[Depends(require_admin)])
+def activate_work_instruction_revision(instruction_id: str, revision_code: str):
+    try:
+        item = db_activate_revision(WORK_INSTRUCTIONS_DB_PATH, instruction_id, revision_code)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    if not item:
+        raise HTTPException(404, "Revisión no encontrada")
+    return item
+
+
+@app.post("/instrucciones/{instruction_id}/revisiones/{revision_code}/procedimientos/{position}/imagen",
+          dependencies=[Depends(require_admin)], status_code=201)
+def upload_work_instruction_image(instruction_id: str, revision_code: str, position: int, body: WorkImageUpload):
+    try:
+        return db_save_step_image(WORK_INSTRUCTIONS_DB_PATH, WORK_INSTRUCTION_FILES_PATH, instruction_id,
+                                  revision_code, position, body.mime_type, body.data_base64)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.get("/instrucciones/{instruction_id}/revisiones/{revision_code}/procedimientos/{position}/imagen")
+def get_work_instruction_image(instruction_id: str, revision_code: str, position: int):
+    item = get_work_instruction(instruction_id)
+    revision = next((x for x in item["revisions"] if x["revision_code"] == revision_code), None)
+    step = next((x for x in revision["steps"] if x["position"] == position), None) if revision else None
+    if not step or not step["image"]:
+        raise HTTPException(404, "Imagen no encontrada")
+    target = (WORK_INSTRUCTION_FILES_PATH / step["image"]["relative_path"]).resolve()
+    if WORK_INSTRUCTION_FILES_PATH.resolve() not in target.parents or not target.is_file():
+        raise HTTPException(404, "Imagen no encontrada")
+    return FileResponse(target, media_type=step["image"]["mime_type"])
+
+
+@app.get("/instrucciones/{instruction_id}/exportar")
+def export_work_instruction(instruction_id: str):
+    return export_work_instruction_revision(instruction_id, None)
+
+
+@app.get("/instrucciones/{instruction_id}/revisiones/{revision_code}/export/xlsx")
+def export_work_instruction_revision(instruction_id: str, revision_code: Optional[str] = None):
+    item = get_work_instruction(instruction_id)
+    if revision_code and not any(revision["revision_code"] == revision_code for revision in item["revisions"]):
+        raise HTTPException(404, "Revisión no encontrada")
+    identity = resolve_model(item["model_id"])
+    item["model_label"] = f"{identity['capacidad'].upper()} · {identity['proveedor'].upper()} · {identity['modelo'].upper()}"
+    if not work_instruction_exporter.available():
+        raise HTTPException(503, "La exportación Excel todavía no está disponible en este entorno.")
+    temporary_directory = Path(tempfile.mkdtemp(prefix="it_download_"))
+    try:
+        generated = work_instruction_exporter.export(item, revision_code, temporary_directory)
+    except BackendUnavailableError as exc:
+        shutil.rmtree(temporary_directory, ignore_errors=True)
+        raise HTTPException(503, str(exc)) from exc
+    except ExportError as exc:
+        shutil.rmtree(temporary_directory, ignore_errors=True)
+        raise HTTPException(422, str(exc)) from exc
+    except Exception as exc:
+        shutil.rmtree(temporary_directory, ignore_errors=True)
+        logger.exception("Fallo inesperado del exportador Excel COM")
+        raise HTTPException(500, "No se pudo generar el archivo Excel.") from exc
+    return FileResponse(
+        generated,
+        filename=generated.name,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        background=BackgroundTask(shutil.rmtree, temporary_directory, ignore_errors=True),
+    )
 
 
 @app.get("/pallets", response_model=PalletInfo)
@@ -849,6 +1191,31 @@ def delete_tiempos(capacidad: str, proveedor: str, modelo: str):
 @app.get("/admin/verify", dependencies=[Depends(require_admin)])
 def verify_admin():
     return {"status": "authorized"}
+
+
+@app.post("/admin/modelos", response_model=MasterModel, dependencies=[Depends(require_admin)], status_code=201)
+def create_model(body: MasterModelCreate):
+    try:
+        return create_master_model(body.model_dump())
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except (OSError, RuntimeError) as exc:
+        logger.error("No se pudo crear el modelo maestro: %s", exc)
+        raise HTTPException(500, "No se pudo guardar el nuevo modelo; no se confirmó el alta") from exc
+
+
+@app.patch("/admin/modelos/{model_id}", response_model=MasterModel, dependencies=[Depends(require_admin)])
+def update_model_metadata(model_id: str, body: MasterModelMetadataUpdate):
+    try:
+        model = update_master_model_metadata(model_id, body.model_dump(exclude_unset=True))
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except (OSError, RuntimeError) as exc:
+        logger.error("No se pudieron actualizar los metadatos de %s: %s", model_id, exc)
+        raise HTTPException(500, "No se pudieron guardar los metadatos del modelo") from exc
+    if not model:
+        raise HTTPException(404, "model_id no encontrado")
+    return model
 
 
 @app.get("/admin/csv", response_class=PlainTextResponse, dependencies=[Depends(require_admin)])

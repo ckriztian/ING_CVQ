@@ -157,6 +157,29 @@ atómicas existentes y recarga los índices en memoria. Una alta, baja o
 modificación de `capacidad/proveedor/modelo` se rechaza para que no sea
 interpretada arbitrariamente como un renombrado o un producto nuevo.
 
+### Alta explícita de modelos
+
+`POST /admin/modelos` es la única vía para crear una identidad y requiere
+`X-API-Key`. Normaliza la clave compuesta, rechaza duplicados y asigna el
+`model_id` siguiente al máximo numérico existente; nunca renumera ni reutiliza
+los IDs actuales. La escritura de `modelos.json` es atómica y los índices en
+memoria se reconstruyen únicamente después de confirmarla.
+
+`PATCH /admin/modelos/{model_id}` permite editar únicamente `sku_bgh` y `pnb`;
+la identidad compuesta permanece inmutable. Cuando ya existe palletización, el
+SKU debe editarse desde esa fuente autoritativa para evitar inconsistencias.
+
+El alta es **master-first**: crea la identidad con `sku_bgh` y `pnb` opcionales,
+pero no inventa dimensiones, pesos, capas ni cantidades industriales. Por ello
+no agrega una fila incompleta a `palletizacion.csv`; el producto aparece en el
+catálogo con palletización `missing` y Administración muestra `Sin datos` hasta
+que se complete una fila válida en la pestaña Palletización. La protección de
+`POST /admin/csv/replace` contra identidades nuevas continúa vigente.
+
+Las especificaciones ya existentes se relacionan por la clave normalizada. Así,
+una spec antes huérfana deja de serlo al dar de alta exactamente el mismo
+producto, sin copiar ni modificar `especificaciones.csv`.
+
 ### Modelo activo en el frontend
 
 Al elegir capacidad, proveedor y modelo en cualquier módulo, la interfaz resuelve su `model_id`, lo presenta en la barra superior y sincroniza los selects de Palletización, Ficha, Personal, Especificaciones, Layouts y Tiempos. Solo el `model_id` se conserva en `sessionStorage`; la clave administrativa continúa exclusivamente en memoria.
@@ -253,3 +276,37 @@ validada en memoria. Guardar continúa usando el `POST /personal` protegido,
 recarga la fuente y vuelve a consulta; cancelar o navegar con cambios pendientes
 solicita confirmación. Un administrador puede iniciar una dotación vacía, pero
 el sistema no inventa sectores.
+
+## Gestor de Instrucciones de Trabajo
+
+El módulo **Instrucciones de Trabajo** separa el identificador interno
+`IT-000001` del código documental corporativo y persiste el contenido en
+`work_instructions.db`, sin utilizar la base de Memoria de Ingeniería. Las
+lecturas son públicas dentro de la aplicación y todas las escrituras reutilizan
+la autenticación `X-API-Key`.
+
+Cada revisión conserva procedimientos ordenados, materiales, herramientas, EPP
+e imágenes opcionales guardadas bajo `data/work_instructions/`. Publicar una
+revisión es transaccional: la revisión activa anterior pasa a `obsolete` y la
+nueva `draft` pasa a `active`. El editor ofrece acciones rápidas, plantillas de
+frase, duplicación y reordenamiento, y una vista previa HTML.
+
+`work_instruction_exporter.py` implementa un adaptador desacoplado basado en
+Microsoft Excel COM. En Windows se instalan las dependencias opcionales con
+`pip install -r requirements-windows.txt`; Linux continúa usando solamente
+`requirements.txt` y responde HTTP 503 de manera controlada.
+
+El adaptador abre siempre una instancia aislada mediante `DispatchEx`, trabaja
+sobre una copia temporal de `templates/it/BSIP_IT_template.xlsx`, elimina por
+nombre los objetos específicos de los procedimientos del ejemplo y conserva
+los recursos corporativos. Para diagnosticar y probar la integración en una PC
+con Microsoft Excel instalado:
+
+```bash
+python scripts/check_excel_com.py
+python scripts/test_it_excel_export.py
+```
+
+El segundo comando genera un archivo bajo `exports_test/` sin acceder a
+`work_instructions.db`. Superar estos scripts no sustituye la inspección visual
+manual del libro generado en Microsoft Excel.

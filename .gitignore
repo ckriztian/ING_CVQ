@@ -6,3 +6,7 @@ __pycache__/
 engineering_history.db
 engineering_history.db-shm
 engineering_history.db-wal
+work_instructions.db
+work_instructions.db-shm
+work_instructions.db-wal
+data/work_instructions/
