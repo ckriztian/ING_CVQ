@@ -74,6 +74,23 @@ def test_admin_pallet_save_refreshes_master_catalog_and_active_views():
     assert "Catálogo maestro sincronizado" in script
 
 
+def test_admin_has_explicit_model_creation_separate_from_csv_grid():
+    html = INDEX.read_text(encoding="utf-8")
+    script = inline_javascript()
+    assert 'id="tab-models"' in html
+    assert 'id="admin-panel-models"' in html
+    assert "+ Agregar modelo" in html
+    for field in ("new-model-capacity", "new-model-provider", "new-model-name", "new-model-sku", "new-model-pnb"):
+        assert f'id="{field}"' in html
+    assert "apiAdmin('/admin/modelos','POST',payload)" in script
+    assert "function editAdminModel(modelId)" in script
+    assert "Editar metadatos" in html
+    assert "await refreshCatalogAfterPalletSave()" in script
+    assert "await loadIntegrityPanel()" in script
+    assert "await loadInstructionLibrary()" in script
+    assert "creado correctamente" in script
+
+
 def test_engineering_history_navigation_dashboard_and_form_are_present():
     html = INDEX.read_text(encoding="utf-8")
     script = inline_javascript()

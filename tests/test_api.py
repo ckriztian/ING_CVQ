@@ -198,6 +198,81 @@ def test_work_instruction_export_errors_are_controlled(client, monkeypatch):
     assert response.json()["detail"] == "No se pudo insertar la imagen"
 
 
+def test_explicit_model_creation_assigns_stable_id_and_resolves_orphan_specs(client):
+    existing = {item["model_id"]: dict(item) for item in main.MODELOS}
+    pallet_before = main.CSV_PATH.read_bytes()
+    payload = {"capacidad": " 9K ", "proveedor": " Midea ", "modelo": " INV ", "sku_bgh": "SKU-9K", "pnb": None}
+    response = client.post("/admin/modelos", json=payload, headers=auth())
+    assert response.status_code == 201
+    created = response.json()
+    assert created == {
+        "model_id": "mdl_000021", "capacidad": "9k", "proveedor": "midea",
+        "modelo": "inv", "sku_bgh": "SKU-9K", "pnb": None,
+    }
+    current_by_id = {item["model_id"]: item for item in main.MODELOS}
+    assert all(current_by_id[model_id] == item for model_id, item in existing.items())
+    assert main.CSV_PATH.read_bytes() == pallet_before
+    assert main.load_models(main.MODELOS_PATH)[-1] == created
+    assert main.resolve_model_id("9k", "MIDEA", "inv") == "mdl_000021"
+    assert any(item["modelo"] == "inv" and item["capacidad"] == "9k" for item in client.get("/catalogo").json())
+    assert client.get("/modelos/mdl_000021").json() == created
+    summary = client.get("/modelos/mdl_000021/resumen").json()
+    assert summary["data_status"]["palletizacion"] == "missing"
+    assert summary["data_status"]["specs"] == "available"
+    report = client.get("/modelos/integridad").json()
+    assert "9k/midea/inv" not in report["specs_without_product"]
+    assert "9k/midea/inv" in report["master_models_without_pallet"]
+
+
+def test_explicit_model_creation_requires_auth_and_rejects_duplicate(client):
+    payload = {"capacidad": "9k", "proveedor": "midea", "modelo": "inv"}
+    assert client.post("/admin/modelos", json=payload).status_code == 401
+    assert client.post("/admin/modelos", json=payload, headers=auth()).status_code == 201
+    duplicate = client.post("/admin/modelos", json={"capacidad": " 9K", "proveedor": "MIDEA ", "modelo": "Inv"}, headers=auth())
+    assert duplicate.status_code == 409
+    assert duplicate.json()["detail"] == "El modelo ya existe."
+
+
+def test_model_creation_write_failure_leaves_disk_and_indexes_unchanged(client, monkeypatch):
+    disk_before = main.MODELOS_PATH.read_bytes()
+    models_before = [dict(item) for item in main.MODELOS]
+    indexes_before = dict(main.MODEL_ID_BY_KEY)
+
+    def fail_save(path, models):
+        raise OSError("fallo simulado")
+
+    monkeypatch.setattr(main, "save_models", fail_save)
+    response = client.post(
+        "/admin/modelos", json={"capacidad": "9k", "proveedor": "midea", "modelo": "inv"}, headers=auth()
+    )
+    assert response.status_code == 500
+    assert main.MODELOS_PATH.read_bytes() == disk_before
+    assert main.MODELOS == models_before
+    assert main.MODEL_ID_BY_KEY == indexes_before
+
+
+def test_next_model_id_uses_highest_existing_value_not_list_length():
+    models = [
+        {"model_id": "mdl_000002"},
+        {"model_id": "mdl_000099"},
+        {"model_id": "mdl_000010"},
+    ]
+    assert main.next_model_id(models) == "mdl_000100"
+
+
+def test_model_metadata_edit_preserves_identity(client):
+    created = client.post(
+        "/admin/modelos", json={"capacidad": "9k", "proveedor": "midea", "modelo": "inv"}, headers=auth()
+    ).json()
+    updated = client.patch(
+        f"/admin/modelos/{created['model_id']}", json={"sku_bgh": "SKU NUEVO", "pnb": "PNB-9K"}, headers=auth()
+    )
+    assert updated.status_code == 200
+    assert updated.json() == {**created, "sku_bgh": "SKU NUEVO", "pnb": "PNB-9K"}
+    assert main.resolve_model_id("9k", "midea", "inv") == created["model_id"]
+    assert main.load_models(main.MODELOS_PATH)[-1] == updated.json()
+
+
 def test_health(client):
     response = client.get("/health")
     assert response.status_code == 200

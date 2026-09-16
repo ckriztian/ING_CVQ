@@ -353,6 +353,7 @@
           <div class="tab-bar">
             <button class="tab-btn active" id="tab-pallet-csv" onclick="switchAdminTab('pallet')">Palletización</button>
             <button class="tab-btn" id="tab-specs-csv" onclick="switchAdminTab('specs')">Especificaciones</button>
+            <button class="tab-btn" id="tab-models" onclick="switchAdminTab('models')">Modelos</button>
           </div>
 
           <!-- ── Palletización ── -->
@@ -429,6 +430,30 @@
                 Presioná "Cargar del servidor" para ver y editar los datos.
               </div>
             </div>
+          </div>
+
+          <!-- ── Alta explícita de modelos ── -->
+          <div id="admin-panel-models" class="hidden">
+            <div class="card mb-12">
+              <div class="flex justify-between flex-wrap gap-8">
+                <div><div class="card-title">Modelos maestros</div><div class="text-hint">El alta crea únicamente la identidad estable. La palletización industrial se completa después en su pestaña, sin valores inventados.</div></div>
+                <button class="btn btn-primary" onclick="toggleNewModelForm(true)">+ Agregar modelo</button>
+              </div>
+              <div id="new-model-form" class="hidden mt-16">
+                <input type="hidden" id="edit-model-id">
+                <div class="fw-600 mb-12" id="model-form-title">Alta de nuevo modelo</div>
+                <div class="grid-3 gap-12">
+                  <div class="field"><label>Capacidad *</label><input id="new-model-capacity" placeholder="Ej: 9K"></div>
+                  <div class="field"><label>Proveedor *</label><input id="new-model-provider" placeholder="Ej: Midea"></div>
+                  <div class="field"><label>Modelo *</label><input id="new-model-name" placeholder="Ej: INV"></div>
+                  <div class="field"><label>SKU BGH</label><input id="new-model-sku"></div>
+                  <div class="field"><label>PNB</label><input id="new-model-pnb"></div>
+                </div>
+                <div class="flex gap-8 mt-12"><button class="btn btn-ok" id="create-model-btn" onclick="saveAdminModel()">Crear modelo</button><button class="btn" onclick="toggleNewModelForm(false)">Cancelar</button></div>
+              </div>
+              <div id="model-admin-message" class="mt-12" aria-live="polite"></div>
+            </div>
+            <div class="card" style="padding:0;overflow:hidden"><div class="table-wrap"><table><thead><tr><th>model_id</th><th>Capacidad</th><th>Proveedor</th><th>Modelo</th><th>SKU BGH</th><th>PNB</th><th>Palletización</th><th></th></tr></thead><tbody id="model-admin-list"></tbody></table></div></div>
           </div>
         </div>
       </div>
@@ -1790,6 +1815,7 @@ async function loadIntegrityPanel() {
   const target = document.getElementById('integrity-panel');
   try {
     const data = await api('/modelos/integridad');
+    INTEGRITY = data;
     const warningModels = data.models_with_warnings || [];
     const cards = [
       ['Productos', data.model_count], ['Sin specs', data.products_without_specs.length],
@@ -1822,11 +1848,59 @@ function adminLogout() {
   if (activeModel) loadActiveModelReminders(activeModel.model_id);
 }
 
-function switchAdminTab(which) {
+async function switchAdminTab(which) {
   document.getElementById('admin-panel-pallet').classList.toggle('hidden', which !== 'pallet');
   document.getElementById('admin-panel-specs').classList.toggle('hidden',  which !== 'specs');
+  document.getElementById('admin-panel-models').classList.toggle('hidden', which !== 'models');
   document.getElementById('tab-pallet-csv').classList.toggle('active', which === 'pallet');
   document.getElementById('tab-specs-csv').classList.toggle('active',  which === 'specs');
+  document.getElementById('tab-models').classList.toggle('active', which === 'models');
+  if (which === 'models') { await loadIntegrityPanel(); renderAdminModels(); }
+}
+
+function toggleNewModelForm(show) {
+  document.getElementById('new-model-form').classList.toggle('hidden', !show);
+  if (!show) resetAdminModelForm();
+  if (show) document.getElementById('new-model-capacity').focus();
+}
+
+function resetAdminModelForm(){
+  document.getElementById('edit-model-id').value='';document.getElementById('model-form-title').textContent='Alta de nuevo modelo';document.getElementById('create-model-btn').textContent='Crear modelo';
+  ['new-model-capacity','new-model-provider','new-model-name','new-model-sku','new-model-pnb'].forEach(id=>{const el=document.getElementById(id);el.value='';el.disabled=false});
+}
+
+function editAdminModel(modelId){
+  const item=MASTER_MODELS.find(model=>model.model_id===modelId);if(!item)return;
+  toggleNewModelForm(true);document.getElementById('edit-model-id').value=item.model_id;document.getElementById('model-form-title').textContent=`Editar metadatos · ${item.model_id}`;document.getElementById('create-model-btn').textContent='Guardar metadatos';
+  [['new-model-capacity','capacidad'],['new-model-provider','proveedor'],['new-model-name','modelo'],['new-model-sku','sku_bgh'],['new-model-pnb','pnb']].forEach(([id,key])=>document.getElementById(id).value=item[key]||'');
+  ['new-model-capacity','new-model-provider','new-model-name'].forEach(id=>document.getElementById(id).disabled=true);
+}
+
+function renderAdminModels() {
+  const missingPallet = new Set(INTEGRITY?.master_models_without_pallet || []);
+  document.getElementById('model-admin-list').innerHTML = MASTER_MODELS.map(item => {
+    const key = `${item.capacidad}/${item.proveedor}/${item.modelo}`;
+    return `<tr><td><code>${htmlEscape(item.model_id)}</code></td><td>${htmlEscape(item.capacidad)}</td><td>${htmlEscape(item.proveedor)}</td><td>${htmlEscape(item.modelo)}</td><td>${htmlEscape(item.sku_bgh||'—')}</td><td>${htmlEscape(item.pnb||'—')}</td><td><span class="badge">${missingPallet.has(key)?'Sin datos':'Registrada'}</span></td><td><button class="btn btn-sm" onclick="editAdminModel('${item.model_id}')">Editar metadatos</button></td></tr>`;
+  }).join('');
+}
+
+async function saveAdminModel() {
+  const button=document.getElementById('create-model-btn'), message=document.getElementById('model-admin-message');
+  const editingId=document.getElementById('edit-model-id').value;
+  const payload={capacidad:document.getElementById('new-model-capacity').value,proveedor:document.getElementById('new-model-provider').value,modelo:document.getElementById('new-model-name').value,sku_bgh:document.getElementById('new-model-sku').value||null,pnb:document.getElementById('new-model-pnb').value||null};
+  if(!payload.capacidad.trim()||!payload.proveedor.trim()||!payload.modelo.trim()){message.innerHTML=alert_html('warn','Capacidad, proveedor y modelo son obligatorios.');return}
+  button.disabled=true;
+  try {
+    const created=editingId
+      ? await apiAdmin(`/admin/modelos/${encodeURIComponent(editingId)}`,'PATCH',{sku_bgh:payload.sku_bgh,pnb:payload.pnb})
+      : await apiAdmin('/admin/modelos','POST',payload);
+    await refreshCatalogAfterPalletSave();
+    await loadIntegrityPanel();
+    await loadInstructionLibrary();
+    renderAdminModels();toggleNewModelForm(false);
+    message.innerHTML=alert_html('ok',editingId?`Metadatos de ${htmlEscape(created.model_id)} actualizados correctamente.`:`Modelo ${htmlEscape(created.model_id)} creado correctamente.`);
+  } catch(error) { message.innerHTML=alert_html('err',htmlEscape(error.message)); }
+  finally { button.disabled=false; }
 }
 
 async function apiAdmin(path, method = 'GET', body = null) {

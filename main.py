@@ -4,9 +4,11 @@ import io
 import json
 import logging
 import os
+import re
 import shutil
 import sqlite3
 import tempfile
+import threading
 import unicodedata
 from datetime import date
 from pathlib import Path
@@ -320,6 +322,7 @@ MODEL_ID_BY_KEY = {
     (norm(item["capacidad"]), norm(item["proveedor"]), norm(item["modelo"])): item["model_id"]
     for item in MODELOS
 }
+MODEL_CATALOG_LOCK = threading.Lock()
 
 
 def refresh_model_indexes(models: Optional[List[Dict[str, Any]]] = None) -> None:
@@ -330,6 +333,65 @@ def refresh_model_indexes(models: Optional[List[Dict[str, Any]]] = None) -> None
         (norm(item["capacidad"]), norm(item["proveedor"]), norm(item["modelo"])): item["model_id"]
         for item in MODELOS
     }
+
+
+def next_model_id(models: List[Dict[str, Any]]) -> str:
+    values = []
+    for item in models:
+        match = re.fullmatch(r"mdl_(\d+)", item["model_id"])
+        if not match:
+            raise RuntimeError(f"model_id inválido en catálogo: {item['model_id']}")
+        values.append(int(match.group(1)))
+    return f"mdl_{max(values, default=0) + 1:06d}"
+
+
+def create_master_model(values: Dict[str, Any]) -> Dict[str, Any]:
+    """Alta master-first: no crea datos industriales de palletización."""
+    key = tuple(norm(values[field]) for field in ("capacidad", "proveedor", "modelo"))
+    with MODEL_CATALOG_LOCK:
+        current = load_models(MODELOS_PATH)
+        existing_keys = {
+            tuple(norm(item[field]) for field in ("capacidad", "proveedor", "modelo"))
+            for item in current
+        }
+        if key in existing_keys:
+            raise ValueError("El modelo ya existe.")
+        record = {
+            "model_id": next_model_id(current),
+            "capacidad": key[0],
+            "proveedor": key[1],
+            "modelo": key[2],
+            "sku_bgh": values.get("sku_bgh") or None,
+            "pnb": values.get("pnb") or None,
+        }
+        candidate = [*current, record]
+        # save_models valida y reemplaza atómicamente. Los índices solo cambian
+        # después de confirmar el archivo, así un fallo deja disco y memoria iguales.
+        save_models(MODELOS_PATH, candidate)
+        refresh_model_indexes(candidate)
+        return record
+
+
+def update_master_model_metadata(model_id: str, values: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    with MODEL_CATALOG_LOCK:
+        current = load_models(MODELOS_PATH)
+        index = next((position for position, item in enumerate(current) if item["model_id"] == model_id), None)
+        if index is None:
+            return None
+        record = dict(current[index])
+        if "sku_bgh" in values:
+            pallet = KB.get(norm(record["capacidad"]), {}).get(norm(record["proveedor"]), {}).get(norm(record["modelo"]))
+            requested_sku = values["sku_bgh"] or None
+            if pallet and requested_sku != (pallet.get("sku") or None):
+                raise ValueError("El SKU de un modelo con palletización debe editarse desde la pestaña Palletización.")
+            record["sku_bgh"] = requested_sku
+        if "pnb" in values:
+            record["pnb"] = values["pnb"] or None
+        candidate = [*current]
+        candidate[index] = record
+        save_models(MODELOS_PATH, candidate)
+        refresh_model_indexes(candidate)
+        return record
 
 
 def synchronize_catalog_skus(candidate_kb: Dict[str, Any], models: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -478,6 +540,41 @@ class MasterModel(BaseModel):
     modelo: str
     sku_bgh: Optional[str] = None
     pnb: Optional[str] = None
+
+
+class MasterModelCreate(BaseModel):
+    capacidad: str = Field(min_length=1, max_length=80)
+    proveedor: str = Field(min_length=1, max_length=80)
+    modelo: str = Field(min_length=1, max_length=120)
+    sku_bgh: Optional[str] = Field(default=None, max_length=160)
+    pnb: Optional[str] = Field(default=None, max_length=120)
+
+    @field_validator("capacidad", "proveedor", "modelo")
+    @classmethod
+    def required_identity(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("La identidad del modelo es obligatoria")
+        return value
+
+    @field_validator("sku_bgh", "pnb")
+    @classmethod
+    def optional_metadata(cls, value: Optional[str]) -> Optional[str]:
+        return value.strip() or None if value is not None else None
+
+    model_config = {"extra": "forbid"}
+
+
+class MasterModelMetadataUpdate(BaseModel):
+    sku_bgh: Optional[str] = Field(default=None, max_length=160)
+    pnb: Optional[str] = Field(default=None, max_length=120)
+
+    @field_validator("sku_bgh", "pnb")
+    @classmethod
+    def optional_metadata(cls, value: Optional[str]) -> Optional[str]:
+        return value.strip() or None if value is not None else None
+
+    model_config = {"extra": "forbid"}
 
 
 class EngineeringChangeCreate(BaseModel):
@@ -668,7 +765,7 @@ def require_admin(x_api_key: Optional[str] = Header(default=None, alias="X-API-K
 
 
 def require_catalog_model(capacidad: str, proveedor: str, modelo: str) -> None:
-    if not KB.get(norm(capacidad), {}).get(norm(proveedor), {}).get(norm(modelo)):
+    if not resolve_model_id(capacidad, proveedor, modelo):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Modelo no encontrado en el catálogo")
 
 
@@ -745,8 +842,8 @@ def integrity_report() -> Dict[str, Any]:
         "model_count": len(MODELOS),
         "products_without_master_identity": sorted(key_label(key) for key in pallet_keys - master_keys),
         "master_models_without_pallet": sorted(key_label(key) for key in master_keys - pallet_keys),
-        "specs_without_product": sorted(key_label(key) for key in spec_keys - pallet_keys),
-        "products_without_specs": sorted(key_label(key) for key in pallet_keys - spec_keys),
+        "specs_without_product": sorted(key_label(key) for key in spec_keys - master_keys),
+        "products_without_specs": sorted(key_label(key) for key in master_keys - spec_keys),
         "products_without_personal": sorted(key_label(key) for key in master_keys if model_key(*key) not in json_keys["personal"]),
         "products_without_layout": sorted(key_label(key) for key in master_keys if model_key(*key) not in json_keys["layout"]),
         "products_without_tiempos": sorted(key_label(key) for key in master_keys if model_key(*key) not in json_keys["tiempos"]),
@@ -765,7 +862,10 @@ def health():
 
 @app.get("/catalogo", response_model=List[CatalogoItem])
 def catalogo():
-    return [{"capacidad": cap, "proveedor": prov, "modelo": mod} for cap, provs in KB.items() for prov, mods in provs.items() for mod in mods]
+    return [
+        {"capacidad": item["capacidad"], "proveedor": item["proveedor"], "modelo": item["modelo"]}
+        for item in MODELOS
+    ]
 
 
 @app.get("/lineas", response_model=List[str])
@@ -1091,6 +1191,31 @@ def delete_tiempos(capacidad: str, proveedor: str, modelo: str):
 @app.get("/admin/verify", dependencies=[Depends(require_admin)])
 def verify_admin():
     return {"status": "authorized"}
+
+
+@app.post("/admin/modelos", response_model=MasterModel, dependencies=[Depends(require_admin)], status_code=201)
+def create_model(body: MasterModelCreate):
+    try:
+        return create_master_model(body.model_dump())
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except (OSError, RuntimeError) as exc:
+        logger.error("No se pudo crear el modelo maestro: %s", exc)
+        raise HTTPException(500, "No se pudo guardar el nuevo modelo; no se confirmó el alta") from exc
+
+
+@app.patch("/admin/modelos/{model_id}", response_model=MasterModel, dependencies=[Depends(require_admin)])
+def update_model_metadata(model_id: str, body: MasterModelMetadataUpdate):
+    try:
+        model = update_master_model_metadata(model_id, body.model_dump(exclude_unset=True))
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except (OSError, RuntimeError) as exc:
+        logger.error("No se pudieron actualizar los metadatos de %s: %s", model_id, exc)
+        raise HTTPException(500, "No se pudieron guardar los metadatos del modelo") from exc
+    if not model:
+        raise HTTPException(404, "model_id no encontrado")
+    return model
 
 
 @app.get("/admin/csv", response_class=PlainTextResponse, dependencies=[Depends(require_admin)])
